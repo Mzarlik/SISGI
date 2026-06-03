@@ -1,0 +1,140 @@
+/* ====== ESTILO GLOBAL ====== */
+body {
+    margin: 0;
+    padding: 0;
+    background: #d6d1ca;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ====== CONTENEDOR CENTRAL (para login y formularios) ====== */
+.center-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* ====== TARJETA GENERAL ====== */
+.card {
+    background: #ffffff;
+    width: 400px;
+    padding: 30px;
+    border-radius: 14px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.15);
+}
+
+/* ====== TÍTULOS ====== */
+.card h2, h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 32px;
+    color: #111;
+    font-weight: 700;
+}
+
+/* ====== INPUTS ====== */
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="number"],
+textarea,
+select {
+    width: 100%;
+    padding: 14px;
+    margin: 10px 0 18px 0;
+    border: 1px solid #c9c9c9;
+    border-radius: 8px;
+    font-size: 16px;
+    background: #fafafa;
+    box-sizing: border-box;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: #721538;
+    box-shadow: 0 0 5px rgba(114, 21, 56, 0.4);
+}
+
+/* ====== BOTÓN GENERAL ====== */
+button,
+input[type="submit"] {
+    width: 100%;
+    padding: 14px;
+    background: #721538;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+button:hover,
+input[type="submit"]:hover {
+    background: #5a0f2c;
+}
+
+/* ====== LINKS ====== */
+a {
+    text-decoration: none;
+    color: #721538;
+    font-weight: bold;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* ====== MENSAJES ====== */
+.error {
+    color: red;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.success {
+    color: green;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+/* === ESTILOS PARA EL MENÚ LATERAL === */
+.sidebar a {
+    text-decoration: none;
+    color: white;
+    display: block;
+    padding: 15px 20px;
+    border-left: 5px solid transparent; /* Borde invisible inicial */
+    transition: all 0.3s ease;
+}
+
+/* Efecto Hover en el menú */
+.sidebar a:hover {
+    background-color: #5d112d; /* Color un poco más oscuro */
+    border-left: 5px solid white; /* Borde blanco indicador */
+    padding-left: 30px; /* Pequeño desplazamiento a la derecha */
+}
+
+/* === ESTILOS PARA BOTONES GENERALES === */
+/* Esto hará que CUALQUIER botón en tu sistema tenga el efecto */
+button, .btn-hover {
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+button:hover, .btn-hover:hover {
+    background-color: #5d112d; /* Oscurecer */
+    transform: scale(1.02); /* Crece un 2% imperceptible pero elegante */
+    cursor: pointer;
+}
+
+.boton-estilo {
+      background-color: #721538;
+      color: white;
+      padding: 10px 20px;
+      text-decoration: none;
+      border-radius: 5px;
+      display: inline-block; /* Asegura que los estilos de relleno funcionen */
+    }

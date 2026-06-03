@@ -1,0 +1,34 @@
+        /* (Tus mismos estilos aquí...) */
+        body { background-color: #d6d1ca; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        .main-container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-top h2 { color: #721538; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .badge-count { background: #e0e0e0; color: #555; font-size: 0.6em; padding: 2px 8px; border-radius: 12px; }
+
+        .toolbar { 
+            background: #fff; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08); display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;
+        }
+
+        .search-box { position: relative; flex-grow: 1; max-width: 500px; display: block; }
+        .search-icon-svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #999; pointer-events: none; }
+        .search-input { width: 100%; height: 45px; padding-left: 50px !important; padding-right: 15px; border: 1px solid #ccc; border-radius: 25px; font-size: 16px; outline: none; box-sizing: border-box; }
+        .search-input:focus { border-color: #721538; box-shadow: 0 0 0 3px rgba(114, 21, 56, 0.1); }
+
+        .table-container { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #721538; color: white; padding: 15px; text-align: left; }
+        td { padding: 12px 15px; border-bottom: 1px solid #eee; color: #333; }
+        
+        .btn-add { background: #27ae60; color: white; padding: 10px 20px; border-radius: 25px; cursor: pointer; border: none; font-weight: bold; }
+        .btn-menu { background: #555; color: white; padding: 10px 20px; border-radius: 25px; text-decoration: none; display:inline-block;}
+        .btn-action { padding: 6px 10px; border-radius: 4px; border: none; cursor: pointer; color: white; margin-right: 2px; }
+        .btn-edit { background: #3498db; }
+        .btn-save { background: #27ae60; display: none; }
+        .btn-cancel { background: #95a5a6; display: none; }
+        .input-edit { width: 100%; padding: 6px; border: 1px solid #721538; border-radius: 4px; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #721538; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: none; margin-left: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        @media (max-width: 768px) { .table-container { overflow-x: auto; } .toolbar { flex-direction: column; align-items: stretch; } }
