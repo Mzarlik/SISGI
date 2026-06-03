@@ -21,56 +21,8 @@ $usuario_input = "";
 
 // --- FUNCIÓN LOCAL PARA AUTENTICACIÓN AD / LDAP ---
 function autenticar_active_directory($usuario, $password) {
-    // Conectar al servidor LDAP
-    $ldap_conn = @ldap_connect(AD_SERVER);
-    if (!$ldap_conn) {
-        error_log("LDAP: No se pudo conectar al servidor " . AD_SERVER);
-        return ['success' => false, 'msg' => "Error de comunicación con el servidor de credenciales."];
-    }
-
-    // Opciones críticas para establecer comunicación con Active Directory
-    ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
-    ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
-
-    // Formatear el usuario como User Principal Name (UPN)
-    $ldap_user = $usuario . "@" . AD_DOMINIO;
-
-    // Intentar el inicio de sesión en el dominio
-    if (!@ldap_bind($ldap_conn, $ldap_user, $password)) {
-        @ldap_unbind($ldap_conn);
-        return ['success' => false, 'msg' => "Usuario o contraseña incorrectos."];
-    }
-
-    // SI EL BIND FUE EXITOSO: El usuario existe y su clave es correcta en el dominio.
-    // AHORA VERIFICAMOS: ¿Está dentro de la OU permitida (DNTIC)?
-    $filtro = "(sAMAccountName=" . ldap_escape($usuario, "", LDAP_ESCAPE_FILTER) . ")";
-    $atributos = ["cn", "mail"]; // Atributos que queremos extraer del AD
-    
-    // La búsqueda se limita estrictamente a tu AD_BASE_DN
-    $search = @ldap_search($ldap_conn, AD_BASE_DN, $filtro, $atributos);
-
-    if (!$search) {
-        @ldap_unbind($ldap_conn);
-        return ['success' => false, 'msg' => "Acceso restringido: No cuentas con permisos para esta plataforma."];
-    }
-
-    $entradas = ldap_get_entries($ldap_conn, $search);
-
-    // Si el conteo es 0, el usuario es válido en el ayuntamiento pero NO pertenece a la OU DNTIC
-    if ($entradas['count'] === 0) {
-        @ldap_unbind($ldap_conn);
-        return ['success' => false, 'msg' => "Acceso denegado: Tu usuario no pertenece al área autorizada."];
-    }
-
-    // Datos del usuario obtenidos desde el AD
-    $datos_usuario = [
-        'success' => true,
-        'nombre'  => $entradas[0]['cn'][0] ?? $usuario,
-        'correo'  => $entradas[0]['mail'][0] ?? ''
-    ];
-
-    @ldap_unbind($ldap_conn);
-    return $datos_usuario;
+    // AUTENTICACIÓN AD DESHABILITADA TEMPORALMENTE
+    return ['success' => false, 'msg' => "Autenticación AD deshabilitada."];
 }
 
 
@@ -82,72 +34,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Por favor ingresa tus credenciales.";
     } else {
         
-        // 1. Validar contra el Directorio Activo corporativo
-        $resultado_ad = autenticar_active_directory($usuario_input, $password_input);
-
-        if (!$resultado_ad['success']) {
-            $error = $resultado_ad['msg'];
-            sleep(1); // Pequeño delay de seguridad para mitigar respuestas rápidas
+        // 1. Validar directamente contra la base de datos local
+        $conn = get_db_connection();
+        
+        if ($conn === null) {
+            $error = "Error de sincronización con la base de datos local.";
         } else {
+            $stmt = $conn->prepare("SELECT id, rol, password FROM usuarios WHERE usuario = ?");
             
-            // 2. Si el AD le dio luz verde, buscamos su Rol en la BD del Sistema Interno
-            $conn = get_db_connection();
-            
-            if ($conn === null) {
-                $error = "Error de sincronización con la base de datos local.";
+            if ($stmt === false) {
+                 $error = "Error interno del sistema.";
             } else {
-                $stmt = $conn->prepare("SELECT id, rol FROM usuarios WHERE usuario = ?");
-                
-                if ($stmt === false) {
-                     $error = "Error interno del sistema.";
-                } else {
-                    $stmt->bind_param("s", $usuario_input);
-                    $stmt->execute();
-                    $stmt->store_result();
+                $stmt->bind_param("s", $usuario_input);
+                $stmt->execute();
+                $stmt->store_result();
 
-                    if ($stmt->num_rows === 1) {
-                        $stmt->bind_result($id, $rol);
-                        $stmt->fetch();
+                if ($stmt->num_rows === 1) {
+                    $stmt->bind_result($id, $rol, $password_hash);
+                    $stmt->fetch();
 
-                        // ¡LOGUEADO CON ÉXITO (Usuario ya existía en BD local)!
+                    // Verificar contraseña localmente
+                    if (password_verify($password_input, $password_hash)) {
+                        // ¡LOGUEADO CON ÉXITO!
                         session_regenerate_id(true);
                         $_SESSION['usuario'] = $usuario_input;
                         $_SESSION['usuario_id'] = $id;
                         $_SESSION['rol'] = $rol;
-                        $_SESSION['nombre_real'] = $resultado_ad['nombre']; 
+                        $_SESSION['nombre_real'] = $usuario_input; 
                         
                         header("Location: /dashboard.php");
                         exit();
                     } else {
-                        // ¡NUEVO COMPORTAMIENTO: AUTO-REGISTRO!
-                        // El AD ya validó que es de la DNTIC, así que lo creamos en MySQL
-                        
-                        $rol_por_defecto = 'tecnico'; // Aquí puedes poner 'tecnico' o el rol básico que manejes
-                        // Ya no necesitamos insertar password ni intentos porque de eso se encarga el AD
-                        $stmt_insert = $conn->prepare("INSERT INTO usuarios (usuario, rol) VALUES (?, ?)");
-                        
-                        if ($stmt_insert) {
-                            $stmt_insert->bind_param("ss", $usuario_input, $rol_por_defecto);
-                            $stmt_insert->execute();
-                            $nuevo_id = $stmt_insert->insert_id;
-                            
-                            // Iniciar sesión automáticamente tras crearlo
-                            session_regenerate_id(true);
-                            $_SESSION['usuario'] = $usuario_input;
-                            $_SESSION['usuario_id'] = $nuevo_id;
-                            $_SESSION['rol'] = $rol_por_defecto;
-                            $_SESSION['nombre_real'] = $resultado_ad['nombre'];
-                            
-                            header("Location: /dashboard.php");
-                            exit();
-                        } else {
-                            $error = "Error al intentar auto-registrar al usuario en la base de datos local.";
-                        }
+                        $error = "Usuario o contraseña incorrectos.";
+                        sleep(1);
                     }
-                    $stmt->close();
+                } else {
+                    $error = "Usuario o contraseña incorrectos.";
+                    sleep(1);
                 }
-                $conn->close();
+                $stmt->close();
             }
+            $conn->close();
         }
     }
 }

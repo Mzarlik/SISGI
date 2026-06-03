@@ -4,7 +4,7 @@
 $DB_HOST = "localhost";
 $DB_USER = "admin_db";
 $DB_PASS = '*$oporte24-28!*';// <--- OJO: Comillas simples por el signo de pesos
-$DB_NAME = "mi_basedatos";
+$DB_NAME = "SISGI_db";
 
 date_default_timezone_set('America/Cancun'); 
 
