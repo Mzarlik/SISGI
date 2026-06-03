@@ -7,7 +7,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // 1. Validar que el usuario esté autenticado
 // Si no existe la variable de sesión 'usuario', lo mandamos al login
 if (!isset($_SESSION['usuario'])) {
-    header("Location: /index.php");
+    header("Location: index.php");
     exit();
 }
 
@@ -23,7 +23,7 @@ if (isset($_SESSION['ultimo_acceso'])) {
         session_destroy();
         
         // Redirigir al login con un parámetro en la URL para mostrar un mensaje
-        header("Location: /index.php?mensaje=sesion_expirada");
+        header("Location: index.php?mensaje=sesion_expirada");
         exit();
     }
 }

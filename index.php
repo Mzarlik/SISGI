@@ -12,7 +12,7 @@ header("X-Frame-Options: DENY");
 header("X-Content-Type-Options: nosniff");
 
 if (isset($_SESSION['usuario'])) {
-    header("Location: /dashboard.php"); 
+    header("Location: dashboard.php"); 
     exit();
 }
 
@@ -34,43 +34,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Por favor ingresa tus credenciales.";
     } else {
         
-        // 1. Validar directamente contra la base de datos local
         $conn = get_db_connection();
         
         if ($conn === null) {
             $error = "Error de sincronización con la base de datos local.";
         } else {
+            // Se actualizó la consulta para traer el password y verificarlo localmente
             $stmt = $conn->prepare("SELECT id, rol, password FROM usuarios WHERE usuario = ?");
             
-            if ($stmt === false) {
-                 $error = "Error interno del sistema.";
-            } else {
+            if ($stmt) {
                 $stmt->bind_param("s", $usuario_input);
                 $stmt->execute();
                 $stmt->store_result();
 
                 if ($stmt->num_rows === 1) {
-                    $stmt->bind_result($id, $rol, $password_hash);
+                    $stmt->bind_result($id, $rol, $hash_db);
                     $stmt->fetch();
 
-                    // Verificar contraseña localmente
-                    if (password_verify($password_input, $password_hash)) {
-                        // ¡LOGUEADO CON ÉXITO!
+                    // Verificamos el hash guardado por setup_admin.php
+                    if (password_verify($password_input, $hash_db)) {
                         session_regenerate_id(true);
                         $_SESSION['usuario'] = $usuario_input;
                         $_SESSION['usuario_id'] = $id;
                         $_SESSION['rol'] = $rol;
-                        $_SESSION['nombre_real'] = $usuario_input; 
+                        $_SESSION['nombre_real'] = "Administrador"; 
                         
-                        header("Location: /dashboard.php");
+                        header("Location: dashboard.php");
                         exit();
                     } else {
-                        $error = "Usuario o contraseña incorrectos.";
-                        sleep(1);
+                        $error = "Contraseña incorrecta.";
                     }
                 } else {
-                    $error = "Usuario o contraseña incorrectos.";
-                    sleep(1);
+                    $error = "Usuario no registrado en el sistema local.";
                 }
                 $stmt->close();
             }

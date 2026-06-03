@@ -7,7 +7,7 @@ session_start();
 // --- CONTROL DE ACCESO ESTRICTO ---
 // Solo permitimos la entrada a usuarios logueados que sean 'masterweb' o 'admin'
 if (!isset($_SESSION['usuario']) || !in_array($_SESSION['rol'], ['masterweb', 'admin'])) {
-    header("Location: /index.php");
+    header("Location: index.php");
     exit();
 }
 
