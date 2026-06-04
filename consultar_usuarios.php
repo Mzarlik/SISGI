@@ -2,7 +2,6 @@
 // consultar_usuarios.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // 1. SEGURIDAD Y CONEXIÓN
 $roles_permitidos = ['admin', 'tecnico'];
@@ -15,6 +14,32 @@ $conn = get_db_connection();
 $conn->set_charset("utf8mb4");
 
 // ==========================================
+// LÓGICA PARA OBTENER DETALLES DE UN USUARIO (AJAX para Resguardos)
+// ==========================================
+if (isset($_GET['ajax_details'])) {
+    ob_clean();
+    header('Content-Type: application/json');
+    $nombreCompleto = isset($_GET['nombre']) ? $conn->real_escape_string($_GET['nombre']) : '';
+    $data = ['found' => false];
+
+    if (!empty($nombreCompleto)) {
+        // Buscamos al usuario por nombre completo para obtener sus detalles
+        $sql = "SELECT r.num_empleado, r.usuario as correo, d.nombre_direccion as area 
+                FROM registros_ad r
+                LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+                WHERE CONCAT(r.nombres, ' ', r.apellido_paterno, ' ', r.apellido_materno) = '$nombreCompleto' LIMIT 1";
+        
+        $res = $conn->query($sql);
+        if ($res && $row = $res->fetch_assoc()) {
+            $data = ['found' => true, 'details' => $row];
+        }
+    }
+    echo json_encode($data);
+    $conn->close();
+    exit;
+}
+
+// ==========================================
 // LÓGICA PARA EXPORTAR DATOS (JSON PARA PDF)
 // ==========================================
 if (isset($_GET['ajax_pdf'])) {
@@ -24,19 +49,19 @@ if (isset($_GET['ajax_pdf'])) {
     $busqueda = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
     $where = "WHERE 1=1";
     if($busqueda) {
-        $where .= " AND (r.nombres LIKE '%$busqueda%' OR r.usuario LIKE '%$busqueda%' OR r.num_empleado LIKE '%$busqueda%' OR r.num_oficio LIKE '%$busqueda%' OR s.nombres LIKE '%$busqueda%' OR d.nombres_direcciones LIKE '%$busqueda%')";
+        $where .= " AND (r.nombres LIKE '%$busqueda%' OR r.usuario LIKE '%$busqueda%' OR r.num_empleado LIKE '%$busqueda%' OR r.num_oficio LIKE '%$busqueda%' OR s.nombres LIKE '%$busqueda%' OR d.nombre_direccion LIKE '%$busqueda%')";
     }
 
     $sql = "SELECT r.num_oficio, 
                    CONCAT(r.nombres, ' ', r.apellido_paterno, ' ', r.apellido_materno) as nombre_completo,
                    r.usuario,
-                   d.nombres_direcciones, 
+                   d.nombre_direccion, 
                    s.nombres as nombre_secretaria 
             FROM registros_ad r
-            LEFT JOIN Direcciones d ON r.id_direccion = d.id_direcciones
+            LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
             LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
             $where
-            ORDER BY s.nombres ASC, d.nombres_direcciones ASC, r.nombres ASC";
+            ORDER BY s.nombres ASC, d.nombre_direccion ASC, r.nombres ASC";
 
     $res = $conn->query($sql);
     $data = [];
@@ -54,10 +79,10 @@ if (isset($_GET['ajax_pdf'])) {
 // LÓGICA DE LA VISTA (HTML NORMAL)
 // ==========================================
 
-$sqlCat = "SELECT d.id_direcciones, d.nombres_direcciones, s.nombres as nombre_secretaria 
-           FROM Direcciones d 
+$sqlCat = "SELECT d.id_direccion, d.nombre_direccion, s.nombres as nombre_secretaria 
+           FROM cat_direcciones d 
            JOIN Secretarias s ON d.id_secretaria = s.id_secretaria 
-           ORDER BY s.nombres, d.nombres_direcciones";
+           ORDER BY s.nombres, d.nombre_direccion";
 $resCat = $conn->query($sqlCat);
 $catalogo = [];
 while($row = $resCat->fetch_assoc()) { $catalogo[] = $row; }
@@ -70,7 +95,7 @@ if($busqueda) {
                 OR r.num_empleado LIKE '%$busqueda%' 
                 OR r.num_oficio LIKE '%$busqueda%' 
                 OR s.nombres LIKE '%$busqueda%' 
-                OR d.nombres_direcciones LIKE '%$busqueda%')"; 
+                OR d.nombre_direccion LIKE '%$busqueda%')"; 
 }
 
 $limite = 10;
@@ -79,17 +104,17 @@ $offset = ($pagina - 1) * $limite;
 
 $sqlTotal = "SELECT COUNT(*) as total 
              FROM registros_ad r 
-             LEFT JOIN Direcciones d ON r.id_direccion = d.id_direcciones
+             LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
              LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
              $where";
 $total = $conn->query($sqlTotal)->fetch_assoc()['total'];
 $paginas = ceil($total / $limite);
 
 $sql = "SELECT r.*, 
-               d.nombres_direcciones, 
+               d.nombre_direccion, 
                s.nombres as nombre_secretaria 
         FROM registros_ad r
-        LEFT JOIN Direcciones d ON r.id_direccion = d.id_direcciones
+        LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
         LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
         $where
         ORDER BY r.id DESC LIMIT $offset, $limite";
@@ -214,7 +239,7 @@ include 'header.php';
                         <td>
                             <div class="view-mode">
                                 <span class="col-sec"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
-                                <span class="col-dir"><?php echo htmlspecialchars($row['nombres_direcciones'] ?? '---'); ?></span>
+                                <span class="col-dir"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
                             </div>
                             <div class="edit-mode hidden">
                                 <select class="edit-input" id="edit_dir_<?php echo $row['id']; ?>"></select>
@@ -337,7 +362,7 @@ include 'header.php';
             const columnas = ["Secretaría", "Dirección / Área", "Oficio", "Nombre Completo", "Usuario"];
             const filas = datos.map(row => [
                 row.nombre_secretaria || 'Sin asignar',
-                row.nombres_direcciones || '---',
+                row.nombre_direccion || '---',
                 row.num_oficio,
                 row.nombre_completo,
                 row.usuario
@@ -384,9 +409,9 @@ include 'header.php';
                 select.appendChild(group);
             }
             let option = document.createElement('option');
-            option.value = item.id_direcciones;
-            option.text = item.nombres_direcciones;
-            if(item.id_direcciones == idDireccionActual) option.selected = true;
+            option.value = item.id_direccion;
+            option.text = item.nombre_direccion;
+            if(item.id_direccion == idDireccionActual) option.selected = true;
             group.appendChild(option);
         });
     }

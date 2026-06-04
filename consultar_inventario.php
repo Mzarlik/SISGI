@@ -47,7 +47,7 @@ if (isset($_GET['ajax'])) {
                         inv.num_serie LIKE '%$safe_term%' OR 
                         inv.descripcion LIKE '%$safe_term%' OR 
                         inv.personal_asignado LIKE '%$safe_term%' OR 
-                        inv.ubicacion LIKE '%$safe_term%')";
+                        inv.nombre_ubicacion LIKE '%$safe_term%')";
     }
 
     // Filtro específico por personal
@@ -63,11 +63,17 @@ if (isset($_GET['ajax'])) {
     $total_registros = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
-    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ubicacion, inv.ruta_foto";
+    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.ruta_foto";
     
+    // Si es para PDF o para resguardo total, quitamos el límite de paginación
+    $limit_clause = " LIMIT $registros_por_pagina OFFSET $offset";
+    if (isset($_GET['all']) || isset($_GET['export'])) {
+        $limit_clause = "";
+    }
+
     $sql = "SELECT $columnas FROM inventario_soporte inv 
             LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo 
-            $where_clause ORDER BY inv.num_inventario DESC LIMIT $registros_por_pagina OFFSET $offset";
+            $where_clause ORDER BY inv.num_inventario DESC" . $limit_clause;
 
     $result = $conn->query($sql);
     $datos = [];
@@ -191,6 +197,7 @@ if (isset($_GET['ajax'])) {
     let timeoutBusqueda = null;
     let datosActuales = []; 
     let equiposSeleccionadosMap = new Map(); // Variable para guardar selecciones globales
+    let datosResponsableActual = null; // Para guardar los detalles del usuario filtrado
     const esAdmin = <?= $esAdmin ? 'true' : 'false' ?>;
     const BASE_URL_IMAGENES = '../inventario/';
 
@@ -208,7 +215,21 @@ if (isset($_GET['ajax'])) {
         // Listener para el filtro de usuario
         document.getElementById('userFilter').addEventListener('change', (e) => {
             filtroUsuario = e.target.value;
+            datosResponsableActual = null; // Limpiamos datos del responsable anterior
             paginaActual = 1;
+            equiposSeleccionadosMap.clear(); // Limpiamos selecciones al cambiar de responsable
+            actualizarContadorSeleccionados();
+
+            // Si se selecciona un responsable, buscamos sus detalles
+            if (filtroUsuario) {
+                fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(filtroUsuario)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.found) {
+                            datosResponsableActual = data.details;
+                        }
+                    });
+            }
             cargarDatos();
         });
 
@@ -307,8 +328,8 @@ if (isset($_GET['ajax'])) {
                             <select id="swal-tipo" class="swal-custom-input bg-white">${optionsTipo}</select>
                         </div>
                         <div>
-                            <label class="swal-field-label">Ubicación</label>
-                            <input id="swal-ubi" class="swal-custom-input" value="${row.ubicacion}">
+                            <label class="swal-field-label">Nombre Ubicación</label>
+                            <input id="swal-ubi" class="swal-custom-input" value="${row.nombre_ubicacion || ''}">
                         </div>
                     </div>
 
@@ -344,7 +365,7 @@ if (isset($_GET['ajax'])) {
                     id: id,
                     num_inventario: document.getElementById('swal-inv').value,
                     id_tipo_bien: document.getElementById('swal-tipo').value,
-                    ubicacion: document.getElementById('swal-ubi').value,
+                    nombre_ubicacion: document.getElementById('swal-ubi').value,
                     marca: document.getElementById('swal-marca').value,
                     modelo: document.getElementById('swal-modelo').value,
                     num_serie: document.getElementById('swal-serie').value,
@@ -383,7 +404,7 @@ if (isset($_GET['ajax'])) {
                 </div>
                 <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
                     <div><span class="block text-xs text-gray-400 uppercase">Marca / Modelo</span><span class="font-medium text-gray-800">${row.marca} - ${row.modelo}</span></div>
-                    <div><span class="block text-xs text-gray-400 uppercase">Ubicación</span><span class="font-medium text-gray-800">${row.ubicacion}</span></div>
+                    <div><span class="block text-xs text-gray-400 uppercase">Ubicación</span><span class="font-medium text-gray-800">${row.nombre_ubicacion || 'S/A'}</span></div>
                 </div>
                 <div class="mb-4">
                     <span class="block text-xs text-gray-400 uppercase">Número de Serie</span>
@@ -455,146 +476,247 @@ if (isset($_GET['ajax'])) {
     }
 
     function iniciarResguardo() {
-        if (equiposSeleccionadosMap.size === 0) {
-            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#721538' });
+        const filtroPersonal = document.getElementById('userFilter').value;
+
+        if (equiposSeleccionadosMap.size === 0 && !filtroPersonal) {
+            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Selecciona al menos un equipo manualmente o filtra por un responsable específico.', confirmButtonColor: '#721538' });
             return;
         }
 
-        const bienesSeleccionados = Array.from(equiposSeleccionadosMap.values());
-        let responsable = '';
-        let ubicacion = '';
-
-        // Recolectar datos de los equipos seleccionados
-        bienesSeleccionados.forEach(bien => {
-            if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
-            if(!ubicacion && bien.ubicacion) ubicacion = bien.ubicacion;
-        });
-
-        generarHojaResguardo(responsable || '_______________________________', ubicacion || '_______________________________', bienesSeleccionados);
+        if (equiposSeleccionadosMap.size > 0) {
+            // Si hay selecciones manuales, usamos esas.
+            pedirDatosResguardo(Array.from(equiposSeleccionadosMap.values()));
+        } else {
+            // Si no hay selecciones manuales, pero hay un responsable filtrado, jalamos todos sus equipos
+            Swal.fire({ title: 'Obteniendo equipos...', didOpen: () => Swal.showLoading() });
+            fetch(`consultar_inventario.php?ajax=1&all=1&u=${encodeURIComponent(filtroPersonal)}`)
+                .then(res => res.json())
+                .then(res => {
+                    Swal.close();
+                    if(res.data && res.data.length > 0) {
+                        pedirDatosResguardo(res.data);
+                    } else {
+                        Swal.fire('Atención', 'Este usuario no tiene equipos asignados.', 'info');
+                    }
+                })
+                .catch(() => Swal.fire('Error', 'No se pudieron obtener los equipos.', 'error'));
+        }
     }
 
-    function generarHojaResguardo(resguardante, ubicacion, bienes) {
+    function pedirDatosResguardo(bienes) {
+        let responsable = '';
+        let ubicacion = datosResponsableActual ? datosResponsableActual.area : '';
+        let num_empleado = datosResponsableActual ? datosResponsableActual.num_empleado : '';
+        let correo = datosResponsableActual ? datosResponsableActual.correo : '';
+
+        // Recolectar datos de los equipos seleccionados
+        if (!filtroUsuario) {
+            bienes.forEach(bien => {
+                if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
+                if(!ubicacion && bien.nombre_ubicacion) ubicacion = bien.nombre_ubicacion;
+            });
+        } else {
+            responsable = filtroUsuario;
+        }
+
+        Swal.fire({
+            title: '<div class="text-xl font-bold border-b pb-2">Datos del Resguardante</div>',
+            html: `
+                <div class="text-left mt-4 text-sm">
+                    <label class="swal-field-label">Nombre del Resguardante</label>
+                    <input id="resg-nombre" class="swal-custom-input" value="${responsable}">
+                    
+                    <label class="swal-field-label">Cargo</label>
+                    <input id="resg-cargo" class="swal-custom-input" placeholder="Ej. Jefe de Departamento">
+                    
+                    <label class="swal-field-label">Número de Empleado</label>
+                    <input id="resg-num-emp" class="swal-custom-input" placeholder="Ej. 12345" value="${num_empleado || ''}">
+                    
+                    <label class="swal-field-label">Área o Departamento</label>
+                    <input id="resg-area" class="swal-custom-input" value="${ubicacion || ''}">
+                    
+                    <label class="swal-field-label">Correo Electrónico</label>
+                    <input id="resg-correo" class="swal-custom-input" placeholder="Ej. correo@ejemplo.com" value="${correo || ''}">
+                    
+                    <label class="swal-field-label">Teléfono</label>
+                    <input id="resg-telefono" class="swal-custom-input" placeholder="Ej. 984 123 4567">
+                </div>
+            `,
+            width: '600px',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-file-signature"></i> Generar Resguardo',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#721538',
+            preConfirm: () => {
+                return {
+                    nombre: document.getElementById('resg-nombre').value || '_______________________________',
+                    cargo: document.getElementById('resg-cargo').value || '_______________________________',
+                    num_empleado: document.getElementById('resg-num-emp').value || '_______________________________',
+                    area: document.getElementById('resg-area').value || '_______________________________',
+                    correo: document.getElementById('resg-correo').value || '_______________________________',
+                    telefono: document.getElementById('resg-telefono').value || '_______________________________'
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                generarHojaResguardo(result.value, bienes);
+            }
+        });
+    }
+
+    function generarHojaResguardo(datosTrabajador, bienes) {
+        // =================================================================================
+        // NOTA IMPORTANTE SOBRE ACENTOS Y 'Ñ' EN EL PDF:
+        // La librería jsPDF por defecto usa fuentes que no soportan caracteres latinos.
+        // Para que los acentos y la 'ñ' se vean bien, necesitas incrustar una fuente TTF.
+        // 1. Descarga una fuente como 'Roboto-Regular.ttf'.
+        // 2. Conviértela a un archivo .js usando una herramienta online o la utilidad de jsPDF.
+        // 3. Incluye ese archivo .js en tu HTML: <script src="Roboto-Regular-normal.js"></script>
+        // 4. Descomenta las siguientes líneas y úsalas en tu documento:
+        //
+        // doc.addFileToVFS('Roboto-Regular-normal.ttf', fontFile); // fontFile es la variable del .js
+        // doc.addFont('Roboto-Regular-normal.ttf', 'Roboto', 'normal');
+        // doc.setFont('Roboto');
+        // =================================================================================
+
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('p', 'pt', 'letter');
-        const marginLeft = 40;
-        let startY = 60;
-        
-        doc.setFontSize(13);
-        doc.setFont("helvetica", "bold");
-        doc.text("Anexo de resguardo de Bienes Muebles", doc.internal.pageSize.getWidth() / 2, startY, { align: "center" });
-        startY += 30;
 
-        doc.setFontSize(10);
-        doc.text("I.    DATOS DE DEPENDENCIA", marginLeft, startY);
-        startY += 10;
-        
-        const fechaActual = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const logoGob = new Image();
+        logoGob.src = 'img/logo_gobierno.png'; // Asume que tienes este logo en /img/
 
-        doc.autoTable({
-            startY: startY,
-            head: [['Conceptos', 'Datos']],
-            body: [
-                ['Unidad de adscripción', 'Hacienda del Estado de Quintana Roo / SATQ'],
-                ['Ubicación', ubicacion],
-                ['Jefe inmediato', '_______________________________'],
-                ['Fecha de elaboración', fechaActual]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-            styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
-            columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
-        });
-        startY = doc.lastAutoTable.finalY + 20;
+        const logoHacienda = new Image();
+        logoHacienda.src = 'img/logo_hacienda.png'; // Asume que tienes este logo en /img/
 
-        doc.setFont("helvetica", "bold");
-        doc.text("II.   DATOS DEL TRABAJADOR", marginLeft, startY);
-        startY += 10;
+        logoHacienda.onload = function() {
+            const marginLeft = 40;
+            const marginRight = 40;
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            let startY = 40;
 
-        doc.autoTable({
-            startY: startY,
-            head: [['Conceptos', 'Datos']],
-            body: [
-                ['Nombre del resguardante', resguardante],
-                ['Cargo', '_______________________________'],
-                ['Número de empleado', '_______________________________'],
-                ['Área o Departamento', ubicacion],
-                ['Correo electrónico', '_______________________________'],
-                ['Teléfono de contacto', '_______________________________']
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-            styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
-            columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
-        });
-        startY = doc.lastAutoTable.finalY + 20;
+            doc.addImage(logoGob, 'PNG', marginLeft, startY, 100, 40);
+            startY += 50;
 
-        doc.setFont("helvetica", "bold");
-        doc.text("III.  DETALLE DE BIENES EN RESGUARDO", marginLeft, startY);
-        startY += 10;
+            doc.setFontSize(13);
+            doc.setFont("helvetica", "bold");
+            doc.text("Anexo de resguardo de Bienes Muebles", pageWidth / 2, startY, { align: "center" });
+            startY += 30;
 
-        const tablaBienes = bienes.map((bien, index) => {
-            // Se concatena la descripción técnica
-            const descripcion = `${bien.nombre_tipo || ''} ${bien.marca || ''} ${bien.modelo || ''} - ${bien.descripcion || ''}`.trim();
-            return [
-                (index + 1).toString(),
-                descripcion,
-                bien.no_bien_mueble || 'S/N',
-                bien.num_serie || 'S/N',
-                'Buen Estado',
-                bien.ubicacion || ubicacion,
-                'N/A'
-            ];
-        });
+            doc.setFontSize(10);
+            doc.text("I.    DATOS DE DEPENDENCIA", marginLeft, startY);
+            startY += 10;
+            
+            const fechaActual = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-        doc.autoTable({
-            startY: startY,
-            head: [['No.', 'Descripción del bien', 'B.M', 'No. Serie', 'Estado', 'Ubicación física', 'Observaciones']],
-            body: tablaBienes,
-            theme: 'grid',
-            headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-            styles: { fontSize: 8, cellPadding: 3, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
-            columnStyles: { 0: { cellWidth: 25, halign: 'center' }, 1: { cellWidth: 'auto' } }
-        });
-        startY = doc.lastAutoTable.finalY + 20;
+            doc.autoTable({
+                startY: startY,
+                head: [['Conceptos', 'Datos']],
+                body: [
+                    ['Unidad de adscripción', 'Hacienda del Estado de Quintana Roo / SATQ'],
+                    ['Ubicación', datosTrabajador.area],
+                    ['Jefe inmediato', '_______________________________'],
+                    ['Fecha de elaboración', fechaActual]
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+                styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
+            });
+            startY = doc.lastAutoTable.finalY + 20;
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text("IV. DECLARACIÓN DE RESPONSABILIDAD", marginLeft, startY);
-        startY += 15;
-        
-        doc.setFontSize(9);
-        const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, así como a devolverlos en buen estado cuando le sea requerido.";
-        const splitText = doc.splitTextToSize(declaracion, doc.internal.pageSize.getWidth() - (marginLeft * 2));
-        doc.text(splitText, marginLeft, startY);
-        
-        startY += (splitText.length * 12) + 20;
+            doc.setFont("helvetica", "bold");
+            doc.text("II.   DATOS DEL TRABAJADOR", marginLeft, startY);
+            startY += 10;
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text("V. FIRMAS", marginLeft, startY);
-        startY += 10;
+            doc.autoTable({
+                startY: startY,
+                head: [['Conceptos', 'Datos']],
+                body: [
+                    ['Nombre del resguardante', datosTrabajador.nombre],
+                    ['Cargo', datosTrabajador.cargo],
+                    ['Número de empleado', datosTrabajador.num_empleado],
+                    ['Área o Departamento', datosTrabajador.area],
+                    ['Correo electrónico', datosTrabajador.correo],
+                    ['Teléfono de contacto', datosTrabajador.telefono]
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+                styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
+            });
+            startY = doc.lastAutoTable.finalY + 20;
 
-        doc.autoTable({
-            startY: startY,
-            head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
-            body: [
-                [`\n\n\n\n${resguardante}`, '\n\n\n\n_______________________________', '\n\n\n\nSistemas SATQ'],
-                [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-            styles: { fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
-        });
+            doc.setFont("helvetica", "bold");
+            doc.text("III.  DETALLE DE BIENES EN RESGUARDO", marginLeft, startY);
+            startY += 10;
 
-        const pageHeight = doc.internal.pageSize.getHeight();
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100);
-        const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
-        doc.text(footerText, doc.internal.pageSize.getWidth() - marginLeft, pageHeight - 40, { align: 'right' });
+            const tablaBienes = bienes.map((bien, index) => {
+                const descripcion = `${bien.nombre_tipo || ''} ${bien.marca || ''} ${bien.modelo || ''} - ${bien.descripcion || ''}`.trim();
+                return [
+                    (index + 1).toString(),
+                    descripcion,
+                    bien.no_bien_mueble || 'S/N',
+                    bien.num_serie || 'S/N',
+                    'Buen Estado',
+                    bien.nombre_ubicacion || datosTrabajador.area,
+                    'N/A'
+                ];
+            });
 
-        // Guardamos el PDF nombrandolo con el nombre del resguardante
-        doc.save(`Resguardo_${resguardante.replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
+            doc.autoTable({
+                startY: startY,
+                head: [['No.', 'Descripción del bien', 'B.M', 'No. Serie', 'Estado', 'Ubicación física', 'Observaciones']],
+                body: tablaBienes,
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+                styles: { fontSize: 8, cellPadding: 3, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
+                columnStyles: { 0: { cellWidth: 20, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 50 }, 6: { cellWidth: 40 } }
+            });
+            startY = doc.lastAutoTable.finalY + 20;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text("IV. DECLARACIÓN DE RESPONSABILIDAD", marginLeft, startY);
+            startY += 15;
+            
+            doc.setFontSize(9);
+            const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, así como a devolverlos en buen estado cuando le sea requerido.";
+            const splitText = doc.splitTextToSize(declaracion, doc.internal.pageSize.getWidth() - (marginLeft * 2));
+            doc.text(splitText, marginLeft, startY);
+            
+            startY += (splitText.length * 12) + 20;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text("V. FIRMAS", marginLeft, startY);
+            startY += 10;
+
+            doc.autoTable({
+                startY: startY,
+                head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
+                body: [
+                    [`\n\n\n\n${datosTrabajador.nombre}`, '\n\n\n\n_______________________________', '\n\n\n\nSistemas SATQ'],
+                    [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+                styles: { fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
+            });
+
+            doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 50, pageHeight - 70, 40, 40);
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(100);
+            const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
+            doc.text(footerText, pageWidth - marginRight, pageHeight - 40, { align: 'right' });
+
+            doc.save(`Resguardo_${datosTrabajador.nombre.replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
+        };
+        logoHacienda.onerror = function() {
+            Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF. Verifica que los archivos "logo_gobierno.png" y "logo_hacienda.png" existan en la carpeta "img/".', 'error');
+        };
     }
 
     function exportarPDF() {
@@ -626,7 +748,7 @@ if (isset($_GET['ajax'])) {
                     item.modelo, 
                     item.num_serie, 
                     item.personal_asignado || 'STOCK', 
-                    item.ubicacion, 
+                    item.nombre_ubicacion || '', 
                     item.descripcion || '-'
                 ]);
 

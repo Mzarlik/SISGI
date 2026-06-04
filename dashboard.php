@@ -364,7 +364,7 @@ if ($conn) {
                 <a href="accesos_sistemas.php" class="group relative block h-full min-h-[180px] overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
     
     <div class="absolute inset-0 w-full h-full">
-        <img src="img/FPLAYA.jpeg" 
+        <img src="img/FPLAYA.png" 
              alt="Fondo Sistemas" 
              class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90">
     </div>

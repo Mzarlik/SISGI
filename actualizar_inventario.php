@@ -34,7 +34,7 @@ $datos_actualizar = [
     'num_serie'         => $_POST['num_serie'] ?? null,
     'descripcion'       => $_POST['descripcion'] ?? null,
     'personal_asignado' => $_POST['personal_asignado'] ?? null,
-    'ubicacion'         => $_POST['ubicacion'] ?? null
+    'nombre_ubicacion'  => $_POST['nombre_ubicacion'] ?? null
 ];
 
 // Comprobación mínima
