@@ -35,16 +35,15 @@ if (empty($id_direccion) || empty($nombres) || empty($usuario)) {
 }
 
 // INSERTAR
-// Nota: Ya no mencionamos ni 'secretaria' ni 'direccion' porque las borraste.
 $sql = "INSERT INTO registros_ad 
-        (id_direccion, num_oficio, fecha_alta, num_empleado, nombres, apellido_paterno, apellido_materno, usuario, contrasena) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        (id_direccion, num_oficio, fecha_alta, num_empleado, nombres, apellido_paterno, apellido_materno, usuario, contrasena, cargo, correo_electronico, telefono) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // Tipos: i (int) y 8 strings (s)
-    $stmt->bind_param("issssssss", 
+    // Tipos: i (int) y 11 strings (s)
+    $stmt->bind_param("isssssssssss", 
         $id_direccion, 
         $num_oficio, 
         $fecha_alta, 
@@ -53,7 +52,10 @@ if ($stmt) {
         $ap_pat, 
         $ap_mat, 
         $usuario, 
-        $contrasena
+        $contrasena,
+        $cargo,
+        $correo,
+        $telefono
     );
 
     if ($stmt->execute()) {

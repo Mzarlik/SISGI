@@ -25,14 +25,23 @@ if (isset($_GET['ajax_details'])) {
     $data = ['found' => false];
 
     if (!empty($nombreCompleto)) {
-        // Convertimos los espacios en '%' para que la búsqueda sea inmune a dobles espacios o errores de captura
-        $busquedaFlexible = '%' . str_replace(' ', '%', $nombreCompleto) . '%';
+        // Separamos el nombre en palabras para buscar sin importar el orden (Ej. Apellidos primero)
+        $palabras = explode(' ', $nombreCompleto);
+        $condiciones = [];
+        $campo_completo = "CONCAT_WS(' ', NULLIF(TRIM(r.nombres), ''), NULLIF(TRIM(r.apellido_paterno), ''), NULLIF(TRIM(r.apellido_materno), ''))";
+        
+        foreach ($palabras as $palabra) {
+            if (!empty(trim($palabra))) {
+                $safe_palabra = $conn->real_escape_string(trim($palabra));
+                $condiciones[] = "$campo_completo LIKE '%$safe_palabra%'";
+            }
+        }
+        $where_match = implode(' AND ', $condiciones);
 
-        // Buscamos al usuario por nombre completo para obtener sus detalles
         $sql = "SELECT r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, d.nombre_direccion as area 
                 FROM registros_ad r
                 LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
-                WHERE CONCAT_WS(' ', NULLIF(TRIM(r.nombres), ''), NULLIF(TRIM(r.apellido_paterno), ''), NULLIF(TRIM(r.apellido_materno), '')) LIKE '$busquedaFlexible' LIMIT 1";
+                WHERE $where_match LIMIT 1";
         
         $res = $conn->query($sql);
         if ($res && $row = $res->fetch_assoc()) {
