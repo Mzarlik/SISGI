@@ -149,7 +149,7 @@ if ($result && $result->num_rows > 0) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte Técnico - DNTICS</title>
+    <title>Reporte Técnico - SATQ</title>
     <style>
         body { font-family: 'Arial', sans-serif; font-size: 11px; color: #333; margin: 0; padding: 20px; }
         
@@ -277,8 +277,8 @@ if ($result && $result->num_rows > 0) {
 
     <div class="header">
         <div class="header-content">
-            <h1>H. Ayuntamiento de Playa del Carmen</h1>
-            <h2>Dirección de Nuevas Tecnologías de la Información y Comunicaciones</h2>
+            <h1>Hacienda del Estado de Quintana Roo</h1>
+            <h2>SATQ</h2>
             <div style="font-size: 12px; margin-top: 5px; color: #721538; font-weight: bold;"><?= $titulo ?></div>
         </div>
         <div class="fecha-box">
@@ -356,7 +356,7 @@ if ($result && $result->num_rows > 0) {
         <div class="firma-box">
             <br><br>
             <strong>Manuel Alejandro Lozano Reyes</strong><br>
-            <span style="font-size: 10px; color: #555;">Departamento de Soporte Técnico</span>
+            <span style="font-size: 10px; color: #555;">Soporte Técnico - SATQ</span>
         </div>
         <div class="firma-box">
             <br><br>

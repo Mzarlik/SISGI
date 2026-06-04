@@ -5,8 +5,8 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Variables de identidad
-$nombre_municipio = "H. Ayuntamiento de Solidaridad";
-$sistema_nombre = "Sistema de Inventario DNTICS";
+$nombre_municipio = "Hacienda del Estado de Quintana Roo";
+$sistema_nombre = "Sistema de Inventario SATQ";
 $usuario_logueado = $_SESSION['usuario'] ?? 'Invitado';
 $rol_usuario = $_SESSION['rol'] ?? 'usuario';
 ?>

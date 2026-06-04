@@ -92,7 +92,7 @@ include 'header.php';
                 
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">No. de Oficio</label>
-                    <input type="text" id="num_oficio" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" placeholder="Ej. MPDC/OM/DNTICS/0358/2026" required>
+                    <input type="text" id="num_oficio" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" placeholder="Ej. SATQ/0358/2026" required>
                 </div>
 
                 <div>
@@ -117,7 +117,7 @@ include 'header.php';
 
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">Entrega (Nombre - Puesto)</label>
-                    <input type="text" id="entrega" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" value="Ing. Alejandro Cambrano Uicab - Director de Nuevas Tecnologías de Información y Comunicaciones" required>
+                    <input type="text" id="entrega" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" value="Nombre del Responsable - Área de Sistemas SATQ" required>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -205,7 +205,7 @@ include 'header.php';
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         
-        const fechaTexto = `Playa del Carmen Q. Roo, a ${formatearFechaLarga(document.getElementById('fecha').value)}`;
+        const fechaTexto = `Quintana Roo, a ${formatearFechaLarga(document.getElementById('fecha').value)}`;
         const numOficio = `No. de Oficio: ${document.getElementById('num_oficio').value}`;
         const asunto = `Asunto: ${document.getElementById('asunto').value}.`;
 
@@ -228,7 +228,7 @@ include 'header.php';
         // 4. CUERPO DEL TEXTO (JUSTIFICADO)
         doc.setFont("helvetica", "normal");
         const areaDestino = document.getElementById('area').value;
-        const textoCuerpo = `A través de la presente me dirijo a Usted, para enviarle un cordial saludo, asimismo solicito gire sus respetables instrucciones a quien corresponda, para que se lleve a cabo EL TRASPASO DE EQUIPO DE CÓMPUTO, que se encuentra bajo el resguardo de la Dirección de Nuevas Tecnologías de la Información y Comunicaciones y sea asignado a la ${areaDestino}, mismos que a continuación se describen:`;
+        const textoCuerpo = `A través de la presente me dirijo a Usted, para enviarle un cordial saludo, asimismo solicito gire sus respetables instrucciones a quien corresponda, para que se lleve a cabo EL TRASPASO DE EQUIPO DE CÓMPUTO, que se encuentra bajo el resguardo del SATQ y sea asignado a la ${areaDestino}, mismos que a continuación se describen:`;
 
         const lineasCuerpo = doc.splitTextToSize(textoCuerpo, anchoUtil);
 

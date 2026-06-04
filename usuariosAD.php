@@ -68,7 +68,7 @@ $conn->close();
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gestión de Usuarios y Roles | DNTIC</title>
+    <title>Gestión de Usuarios y Roles | SATQ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/estilos.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -79,7 +79,7 @@ $conn->close();
     <nav class="navbar navbar-dark bg-dark shadow-sm mb-4">
         <div class="container">
             <span class="navbar-brand mb-0 h1">
-                <i class="fas fa-users-cog me-2"></i> Panel de Administración DNTIC
+                <i class="fas fa-users-cog me-2"></i> Panel de Administración SATQ
             </span>
             <span class="text-light text-sm">
                 Conectado como: <strong><?= htmlspecialchars($_SESSION['nombre_real'] ?? $_SESSION['usuario']) ?></strong> (<?= htmlspecialchars($_SESSION['rol']) ?>)
@@ -134,7 +134,7 @@ $conn->close();
                                                         </div>
                                                         <div>
                                                             <span class="fw-bold text-dark"><?= htmlspecialchars($user['usuario']) ?></span>
-                                                            <span class="text-muted d-block text-xs">@solidaridad.mx</span>
+                                                    <span class="text-muted d-block text-xs">@qroo.gob.mx</span>
                                                         </div>
                                                     </div>
                                                 </td>

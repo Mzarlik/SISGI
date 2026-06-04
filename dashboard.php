@@ -2,11 +2,6 @@
 require_once 'session_check.php';
 require_once 'config.php';
 
-// Configuración de sesión
-ini_set('session.gc_maxlifetime', 600);
-session_set_cookie_params(600);
-session_start();
-
 // 1. SEGURIDAD
 if (!isset($_SESSION['usuario'])) {
     header("Location: index.php");

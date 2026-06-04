@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="p-8 sm:p-10">
             <div class="text-center mb-8">
-                <img src="img/SOLIDARIDAD1.png" alt="SOLIDARIDAD" class="h-32 mx-auto mb-4 object-contain">
+                <img src="img/SOLIDARIDAD1.png" alt="SATQ" class="h-32 mx-auto mb-4 object-contain">
                 <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Bienvenido</h1>
                 <p class="text-gray-500 text-sm mt-1">Ingresa tus credenciales institucionales</p>
             </div>
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
             <p class="text-xs text-gray-400">
-                &copy; <?= date("Y") ?> Sistema de Gestión Interna | DNTIC
+                &copy; <?= date("Y") ?> Sistema de Gestión Interna | SATQ
             </p>
         </div>
     </div>

@@ -367,9 +367,9 @@ function validar() {
     doc.setFont(undefined, 'bold');
     doc.text("AUTORIZA", 105, bottomY + 5, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    doc.text("Ing. Alejandro Cambrano Uicab", 105, bottomY + 10, { align: 'center' });
-    doc.text("Dirección de Nuevas Tecnologías de la", 105, bottomY + 14, { align: 'center' });
-    doc.text("Información y Comunicaciones", 105, bottomY + 18, { align: 'center' });
+    doc.text("Director Asignado al SATQ", 105, bottomY + 10, { align: 'center' });
+    doc.text("Hacienda del Estado de Quintana Roo", 105, bottomY + 14, { align: 'center' });
+    doc.text("Sistemas SATQ", 105, bottomY + 18, { align: 'center' });
 
     doc.save(`Solicitud_${config.area}.pdf`);
 }

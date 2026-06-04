@@ -83,7 +83,7 @@ include 'header.php';
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cronograma - Playa del Carmen</title>
+    <title>Cronograma - SATQ</title>
     <script src="js/tailwindcss.js"></script>
 
     <style>
@@ -127,8 +127,8 @@ include 'header.php';
     <div class="hoja">
         <div class="flex justify-between items-end border-b-2 mb-4 pb-2" style="border-color: <?= $color_institucional ?>;">
             <div>
-                <h1 class="text-lg font-bold uppercase text-gray-800 leading-tight">H. AYUNTAMIENTO DE PLAYA DEL CARMEN</h1>
-                <h2 class="text-xs text-gray-600 font-bold uppercase">Dirección de Nuevas Tecnologías (DNTICS)</h2>
+                <h1 class="text-lg font-bold uppercase text-gray-800 leading-tight">Hacienda del Estado de Quintana Roo</h1>
+                <h2 class="text-xs text-gray-600 font-bold uppercase">SATQ</h2>
             </div>
             <div class="text-right">
                 <h3 class="text-sm font-bold uppercase" style="color: <?= $color_institucional ?>;">Cronograma de Actividades</h3>

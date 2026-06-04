@@ -65,7 +65,7 @@ class PDF extends FPDF {
         // $this->Image('logo.png',10,6,30);
         $this->SetFont('Arial','B',14);
         $this->SetTextColor(114, 21, 56); // Color #721538
-        $this->Cell(0,10,utf8_decode('H. Ayuntamiento de Playa del Carmen'),0,1,'C');
+        $this->Cell(0,10,utf8_decode('Hacienda del Estado de Quintana Roo'),0,1,'C');
         $this->SetFont('Arial','B',12);
         $this->Cell(0,10,utf8_decode($this->tituloReporte),0,1,'C');
         if($this->subtitulo) {
@@ -92,7 +92,7 @@ class PDF extends FPDF {
         $this->SetY(-15);
         $this->SetFont('Arial','I',8);
         $this->SetTextColor(128);
-        $this->Cell(0,10,utf8_decode('Página ').$this->PageNo().'/{nb} - Generado por Sistema DNTICS',0,0,'C');
+        $this->Cell(0,10,utf8_decode('Página ').$this->PageNo().'/{nb} - Generado por Sistema SATQ',0,0,'C');
     }
 }
 
