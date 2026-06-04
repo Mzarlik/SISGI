@@ -60,7 +60,8 @@ if (isset($_GET['ajax'])) {
 
     $count_sql = "SELECT COUNT(inv.id) AS total FROM inventario_soporte inv 
                   LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo" . $where_clause;
-    $total_registros = $conn->query($count_sql)->fetch_assoc()['total'];
+    $resCount = $conn->query($count_sql);
+    $total_registros = $resCount ? $resCount->fetch_assoc()['total'] : 0;
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
     $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.ruta_foto";
@@ -77,7 +78,9 @@ if (isset($_GET['ajax'])) {
 
     $result = $conn->query($sql);
     $datos = [];
-    while($row = $result->fetch_assoc()) { $datos[] = $row; }
+    if ($result) {
+        while($row = $result->fetch_assoc()) { $datos[] = $row; }
+    }
 
     echo json_encode([
         'data' => $datos,
@@ -485,7 +488,29 @@ if (isset($_GET['ajax'])) {
 
         if (equiposSeleccionadosMap.size > 0) {
             // Si hay selecciones manuales, usamos esas.
-            pedirDatosResguardo(Array.from(equiposSeleccionadosMap.values()));
+            let bienes = Array.from(equiposSeleccionadosMap.values());
+            let responsable = '';
+            bienes.forEach(bien => {
+                if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
+            });
+
+            // Si encontramos un responsable pero no tenemos sus datos, hacemos una consulta rápida al servidor
+            if (responsable && (!datosResponsableActual || filtroPersonal !== responsable)) {
+                Swal.fire({ title: 'Obteniendo datos del responsable...', didOpen: () => Swal.showLoading() });
+                fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(responsable)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        Swal.close();
+                        datosResponsableActual = data.found ? data.details : null;
+                        pedirDatosResguardo(bienes, responsable);
+                    })
+                    .catch(() => {
+                        Swal.close();
+                        pedirDatosResguardo(bienes, responsable);
+                    });
+            } else {
+                pedirDatosResguardo(bienes, responsable || filtroPersonal);
+            }
         } else {
             // Si no hay selecciones manuales, pero hay un responsable filtrado, jalamos todos sus equipos
             Swal.fire({ title: 'Obteniendo equipos...', didOpen: () => Swal.showLoading() });
@@ -494,7 +519,7 @@ if (isset($_GET['ajax'])) {
                 .then(res => {
                     Swal.close();
                     if(res.data && res.data.length > 0) {
-                        pedirDatosResguardo(res.data);
+                        pedirDatosResguardo(res.data, filtroPersonal);
                     } else {
                         Swal.fire('Atención', 'Este usuario no tiene equipos asignados.', 'info');
                     }
@@ -503,20 +528,19 @@ if (isset($_GET['ajax'])) {
         }
     }
 
-    function pedirDatosResguardo(bienes) {
-        let responsable = '';
+    function pedirDatosResguardo(bienes, responsableNombre) {
+        let responsable = responsableNombre || '';
         let ubicacion = datosResponsableActual ? datosResponsableActual.area : '';
         let num_empleado = datosResponsableActual ? datosResponsableActual.num_empleado : '';
         let correo = datosResponsableActual ? datosResponsableActual.correo : '';
+        let cargo = datosResponsableActual ? datosResponsableActual.cargo : '';
+        let telefono = datosResponsableActual ? datosResponsableActual.telefono : '';
 
         // Recolectar datos de los equipos seleccionados
-        if (!filtroUsuario) {
+        if (!ubicacion) {
             bienes.forEach(bien => {
-                if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
                 if(!ubicacion && bien.nombre_ubicacion) ubicacion = bien.nombre_ubicacion;
             });
-        } else {
-            responsable = filtroUsuario;
         }
 
         Swal.fire({
@@ -527,7 +551,7 @@ if (isset($_GET['ajax'])) {
                     <input id="resg-nombre" class="swal-custom-input" value="${responsable}">
                     
                     <label class="swal-field-label">Cargo</label>
-                    <input id="resg-cargo" class="swal-custom-input" placeholder="Ej. Jefe de Departamento">
+                    <input id="resg-cargo" class="swal-custom-input" placeholder="Ej. Jefe de Departamento" value="${cargo || ''}">
                     
                     <label class="swal-field-label">Número de Empleado</label>
                     <input id="resg-num-emp" class="swal-custom-input" placeholder="Ej. 12345" value="${num_empleado || ''}">
@@ -539,7 +563,7 @@ if (isset($_GET['ajax'])) {
                     <input id="resg-correo" class="swal-custom-input" placeholder="Ej. correo@ejemplo.com" value="${correo || ''}">
                     
                     <label class="swal-field-label">Teléfono</label>
-                    <input id="resg-telefono" class="swal-custom-input" placeholder="Ej. 984 123 4567">
+                    <input id="resg-telefono" class="swal-custom-input" placeholder="Ej. 984 123 4567" value="${telefono || ''}">
                 </div>
             `,
             width: '600px',
@@ -565,19 +589,11 @@ if (isset($_GET['ajax'])) {
     }
 
     function generarHojaResguardo(datosTrabajador, bienes) {
-        // =================================================================================
-        // NOTA IMPORTANTE SOBRE ACENTOS Y 'Ñ' EN EL PDF:
-        // La librería jsPDF por defecto usa fuentes que no soportan caracteres latinos.
-        // Para que los acentos y la 'ñ' se vean bien, necesitas incrustar una fuente TTF.
-        // 1. Descarga una fuente como 'Roboto-Regular.ttf'.
-        // 2. Conviértela a un archivo .js usando una herramienta online o la utilidad de jsPDF.
-        // 3. Incluye ese archivo .js en tu HTML: <script src="Roboto-Regular-normal.js"></script>
-        // 4. Descomenta las siguientes líneas y úsalas en tu documento:
-        //
-        // doc.addFileToVFS('Roboto-Regular-normal.ttf', fontFile); // fontFile es la variable del .js
-        // doc.addFont('Roboto-Regular-normal.ttf', 'Roboto', 'normal');
-        // doc.setFont('Roboto');
-        // =================================================================================
+        // Función para limpiar acentos y evitar los '?' en el PDF
+        const limpiarTexto = (texto) => {
+            if (!texto) return '';
+            return texto.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ñ/g, "n").replace(/Ñ/g, "N");
+        };
 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('p', 'pt', 'letter');
@@ -595,8 +611,9 @@ if (isset($_GET['ajax'])) {
             const pageWidth = doc.internal.pageSize.getWidth();
             let startY = 40;
 
-            doc.addImage(logoGob, 'PNG', marginLeft, startY, 100, 40);
-            startY += 50;
+            // Logo de Gobierno un poco más ancho y alto
+            doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
+            startY += 55;
 
             doc.setFontSize(13);
             doc.setFont("helvetica", "bold");
@@ -613,10 +630,10 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Conceptos', 'Datos']],
                 body: [
-                    ['Unidad de adscripción', 'Hacienda del Estado de Quintana Roo / SATQ'],
-                    ['Ubicación', datosTrabajador.area],
+                    ['Unidad de adscripcion', 'Hacienda del Estado de Quintana Roo / SATQ'],
+                    ['Ubicacion', limpiarTexto(datosTrabajador.area)],
                     ['Jefe inmediato', '_______________________________'],
-                    ['Fecha de elaboración', fechaActual]
+                    ['Fecha de elaboracion', fechaActual]
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
@@ -633,12 +650,12 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Conceptos', 'Datos']],
                 body: [
-                    ['Nombre del resguardante', datosTrabajador.nombre],
-                    ['Cargo', datosTrabajador.cargo],
-                    ['Número de empleado', datosTrabajador.num_empleado],
-                    ['Área o Departamento', datosTrabajador.area],
-                    ['Correo electrónico', datosTrabajador.correo],
-                    ['Teléfono de contacto', datosTrabajador.telefono]
+                    ['Nombre del resguardante', limpiarTexto(datosTrabajador.nombre)],
+                    ['Cargo', limpiarTexto(datosTrabajador.cargo)],
+                    ['Numero de empleado', limpiarTexto(datosTrabajador.num_empleado)],
+                    ['Area o Departamento', limpiarTexto(datosTrabajador.area)],
+                    ['Correo electronico', limpiarTexto(datosTrabajador.correo)],
+                    ['Telefono de contacto', limpiarTexto(datosTrabajador.telefono)]
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
@@ -655,18 +672,18 @@ if (isset($_GET['ajax'])) {
                 const descripcion = `${bien.nombre_tipo || ''} ${bien.marca || ''} ${bien.modelo || ''} - ${bien.descripcion || ''}`.trim();
                 return [
                     (index + 1).toString(),
-                    descripcion,
+                    limpiarTexto(descripcion),
                     bien.no_bien_mueble || 'S/N',
                     bien.num_serie || 'S/N',
                     'Buen Estado',
-                    bien.nombre_ubicacion || datosTrabajador.area,
+                    limpiarTexto(bien.nombre_ubicacion || datosTrabajador.area),
                     'N/A'
                 ];
             });
 
             doc.autoTable({
                 startY: startY,
-                head: [['No.', 'Descripción del bien', 'B.M', 'No. Serie', 'Estado', 'Ubicación física', 'Observaciones']],
+                head: [['No.', 'Descripcion del bien', 'B.M', 'No. Serie', 'Estado', 'Ubicacion fisica', 'Observaciones']],
                 body: tablaBienes,
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
@@ -677,11 +694,11 @@ if (isset($_GET['ajax'])) {
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
-            doc.text("IV. DECLARACIÓN DE RESPONSABILIDAD", marginLeft, startY);
+            doc.text("IV. DECLARACION DE RESPONSABILIDAD", marginLeft, startY);
             startY += 15;
             
             doc.setFontSize(9);
-            const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, así como a devolverlos en buen estado cuando le sea requerido.";
+            const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, asi como a devolverlos en buen estado cuando le sea requerido.";
             const splitText = doc.splitTextToSize(declaracion, doc.internal.pageSize.getWidth() - (marginLeft * 2));
             doc.text(splitText, marginLeft, startY);
             
@@ -696,7 +713,7 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
                 body: [
-                    [`\n\n\n\n${datosTrabajador.nombre}`, '\n\n\n\n_______________________________', '\n\n\n\nSistemas SATQ'],
+                    [`\n\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, '\n\n\n\n_______________________________', '\n\n\n\nSistemas SATQ'],
                     [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
                 ],
                 theme: 'grid',
@@ -704,15 +721,17 @@ if (isset($_GET['ajax'])) {
                 styles: { fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
             });
 
-            doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 50, pageHeight - 70, 40, 40);
+            // Logo Hacienda con proporción alargada para que no se vea comprimido
+            doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
 
             doc.setFontSize(8);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(100);
             const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
-            doc.text(footerText, pageWidth - marginRight, pageHeight - 40, { align: 'right' });
+            // Movemos el texto a la izquierda para balancear el pie de página y evitar que se encime
+            doc.text(footerText, marginLeft, pageHeight - 40, { align: 'left' });
 
-            doc.save(`Resguardo_${datosTrabajador.nombre.replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
+            doc.save(`Resguardo_${limpiarTexto(datosTrabajador.nombre).replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
         };
         logoHacienda.onerror = function() {
             Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF. Verifica que los archivos "logo_gobierno.png" y "logo_hacienda.png" existan en la carpeta "img/".', 'error');
@@ -722,6 +741,11 @@ if (isset($_GET['ajax'])) {
     function exportarPDF() {
         const busquedaActual = document.getElementById('searchInput').value;
         const personalActual = document.getElementById('userFilter').value;
+
+        const limpiarTexto = (texto) => {
+            if (!texto) return '';
+            return texto.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ñ/g, "n").replace(/Ñ/g, "N");
+        };
         
         Swal.fire({ title: 'Generando PDF...', text: 'Preparando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         
@@ -737,19 +761,19 @@ if (isset($_GET['ajax'])) {
                 if (personalActual) {
                     doc.setFontSize(10);
                     doc.setTextColor(80, 80, 80);
-                    doc.text(`Filtrado por responsable: ${personalActual}`, 14, 21);
+                    doc.text(`Filtrado por responsable: ${limpiarTexto(personalActual)}`, 14, 21);
                 }
                 
-                const columnas = ["No. Bien Mueble", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Ubicación", "Descripción"];
+                const columnas = ["No. Bien Mueble", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Ubicacion", "Descripcion"];
                 const filas = res.data.map(item => [
                     item.no_bien_mueble || 'S/N', 
-                    item.nombre_tipo || 'N/A', 
+                    limpiarTexto(item.nombre_tipo) || 'N/A', 
                     item.marca, 
                     item.modelo, 
                     item.num_serie, 
-                    item.personal_asignado || 'STOCK', 
-                    item.nombre_ubicacion || '', 
-                    item.descripcion || '-'
+                    limpiarTexto(item.personal_asignado) || 'STOCK', 
+                    limpiarTexto(item.nombre_ubicacion) || '', 
+                    limpiarTexto(item.descripcion) || '-'
                 ]);
 
                 doc.autoTable({

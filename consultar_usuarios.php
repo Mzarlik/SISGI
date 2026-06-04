@@ -20,14 +20,19 @@ if (isset($_GET['ajax_details'])) {
     ob_clean();
     header('Content-Type: application/json');
     $nombreCompleto = isset($_GET['nombre']) ? $conn->real_escape_string($_GET['nombre']) : '';
+    // Limpiamos los espacios múltiples para asegurar el "Match"
+    $nombreCompleto = trim(preg_replace('/\s+/', ' ', $nombreCompleto));
     $data = ['found' => false];
 
     if (!empty($nombreCompleto)) {
+        // Convertimos los espacios en '%' para que la búsqueda sea inmune a dobles espacios o errores de captura
+        $busquedaFlexible = '%' . str_replace(' ', '%', $nombreCompleto) . '%';
+
         // Buscamos al usuario por nombre completo para obtener sus detalles
-        $sql = "SELECT r.num_empleado, r.usuario as correo, d.nombre_direccion as area 
+        $sql = "SELECT r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, d.nombre_direccion as area 
                 FROM registros_ad r
                 LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
-                WHERE CONCAT(r.nombres, ' ', r.apellido_paterno, ' ', r.apellido_materno) = '$nombreCompleto' LIMIT 1";
+                WHERE CONCAT_WS(' ', NULLIF(TRIM(r.nombres), ''), NULLIF(TRIM(r.apellido_paterno), ''), NULLIF(TRIM(r.apellido_materno), '')) LIKE '$busquedaFlexible' LIMIT 1";
         
         $res = $conn->query($sql);
         if ($res && $row = $res->fetch_assoc()) {
@@ -49,12 +54,12 @@ if (isset($_GET['ajax_pdf'])) {
     $busqueda = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
     $where = "WHERE 1=1";
     if($busqueda) {
-        $where .= " AND (r.nombres LIKE '%$busqueda%' OR r.usuario LIKE '%$busqueda%' OR r.num_empleado LIKE '%$busqueda%' OR r.num_oficio LIKE '%$busqueda%' OR s.nombres LIKE '%$busqueda%' OR d.nombre_direccion LIKE '%$busqueda%')";
+        $where .= " AND (r.nombres LIKE '%$busqueda%' OR r.usuario LIKE '%$busqueda%' OR r.num_empleado LIKE '%$busqueda%' OR r.num_oficio LIKE '%$busqueda%' OR r.cargo LIKE '%$busqueda%' OR r.correo_electronico LIKE '%$busqueda%' OR s.nombres LIKE '%$busqueda%' OR d.nombre_direccion LIKE '%$busqueda%')";
     }
 
     $sql = "SELECT r.num_oficio, 
-                   CONCAT(r.nombres, ' ', r.apellido_paterno, ' ', r.apellido_materno) as nombre_completo,
-                   r.usuario,
+                   TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_completo,
+                   r.usuario, r.cargo, r.correo_electronico, r.telefono,
                    d.nombre_direccion, 
                    s.nombres as nombre_secretaria 
             FROM registros_ad r
@@ -85,7 +90,9 @@ $sqlCat = "SELECT d.id_direccion, d.nombre_direccion, s.nombres as nombre_secret
            ORDER BY s.nombres, d.nombre_direccion";
 $resCat = $conn->query($sqlCat);
 $catalogo = [];
-while($row = $resCat->fetch_assoc()) { $catalogo[] = $row; }
+if ($resCat) {
+    while($row = $resCat->fetch_assoc()) { $catalogo[] = $row; }
+}
 
 $busqueda = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
 $where = "WHERE 1=1";
@@ -94,6 +101,8 @@ if($busqueda) {
                 OR r.usuario LIKE '%$busqueda%' 
                 OR r.num_empleado LIKE '%$busqueda%' 
                 OR r.num_oficio LIKE '%$busqueda%' 
+                OR r.cargo LIKE '%$busqueda%'
+                OR r.correo_electronico LIKE '%$busqueda%'
                 OR s.nombres LIKE '%$busqueda%' 
                 OR d.nombre_direccion LIKE '%$busqueda%')"; 
 }
@@ -107,8 +116,9 @@ $sqlTotal = "SELECT COUNT(*) as total
              LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
              LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
              $where";
-$total = $conn->query($sqlTotal)->fetch_assoc()['total'];
-$paginas = ceil($total / $limite);
+$resTotal = $conn->query($sqlTotal);
+$total = $resTotal ? $resTotal->fetch_assoc()['total'] : 0;
+$paginas = $limite > 0 ? ceil($total / $limite) : 1;
 
 $sql = "SELECT r.*, 
                d.nombre_direccion, 
@@ -212,28 +222,39 @@ include 'header.php';
                 <thead>
                     <tr>
                         <th width="5%">ID</th>
-                        <th width="10%">Oficio</th>
-                        <th width="30%">Ubicación</th>
-                        <th width="25%">Nombre Completo</th>
-                        <th width="15%">Cuenta</th>
-                        <th width="15%" style="text-align:center;">Acciones</th>
+                        <th width="25%">Nombre y Cargo</th>
+                        <th width="25%">Ubicación</th>
+                        <th width="20%">Contacto</th>
+                        <th width="15%">Cuenta / Oficio</th>
+                        <th width="10%" style="text-align:center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if($res->num_rows == 0): ?>
+                <?php if(!$res || $res->num_rows == 0): ?>
                         <tr><td colspan="6" style="text-align:center; padding: 40px; color:#9ca3af;">No se encontraron resultados</td></tr>
                     <?php endif; ?>
 
-                    <?php while($row = $res->fetch_assoc()): 
-                        $nombreCompleto = $row['nombres'] . ' ' . $row['apellido_paterno'] . ' ' . $row['apellido_materno'];
+                <?php if($res): while($row = $res->fetch_assoc()): 
+                        $nombreCompleto = trim(preg_replace('/\s+/', ' ', $row['nombres'] . ' ' . $row['apellido_paterno'] . ' ' . $row['apellido_materno']));
                         $passVal = $row['contrasena'] ?? $row['password'] ?? '';
                     ?>
                     <tr id="fila_<?php echo $row['id']; ?>">
                         <td style="color:#9ca3af; font-size:0.8em; padding-top:20px;"><?php echo $row['id']; ?></td>
 
                         <td>
-                            <div class="view-mode"><?php echo htmlspecialchars($row['num_oficio']); ?></div>
-                            <input type="text" class="edit-mode edit-input hidden" id="edit_oficio_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['num_oficio']); ?>">
+                            <div class="view-mode col-nombre">
+                                <?php echo htmlspecialchars($nombreCompleto); ?>
+                                <div style="font-size:0.75em; color:#6b7280; margin-top:2px;">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></div>
+                                <div style="font-size:0.75em; color:#9ca3af; margin-top:2px;">Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></div>
+                            </div>
+                            <div class="edit-mode hidden">
+                                <input type="text" class="edit-input" id="edit_nom_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['nombres']); ?>" placeholder="Nombres">
+                                <div style="display:flex; gap:5px;">
+                                    <input type="text" class="edit-input" id="edit_pat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_paterno']); ?>" placeholder="A. Pat">
+                                    <input type="text" class="edit-input" id="edit_mat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_materno']); ?>" placeholder="A. Mat">
+                                </div>
+                                <input type="text" class="edit-input" id="edit_cargo_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['cargo'] ?? ''); ?>" placeholder="Cargo">
+                            </div>
                         </td>
 
                         <td>
@@ -247,29 +268,28 @@ include 'header.php';
                         </td>
 
                         <td>
-                            <div class="view-mode col-nombre">
-                                <?php echo htmlspecialchars($nombreCompleto); ?>
-                                <div style="font-size:0.75em; color:#9ca3af; margin-top:2px;">Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></div>
+                            <div class="view-mode">
+                                <div style="font-size:0.85em; color:#374151;"><i class="fas fa-envelope text-gray-400"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
+                                <div style="font-size:0.85em; color:#374151; margin-top:4px;"><i class="fas fa-phone text-gray-400"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
                             </div>
                             <div class="edit-mode hidden">
-                                <input type="text" class="edit-input" id="edit_nom_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['nombres']); ?>" placeholder="Nombres">
-                                <div style="display:flex; gap:5px;">
-                                    <input type="text" class="edit-input" id="edit_pat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_paterno']); ?>" placeholder="A. Pat">
-                                    <input type="text" class="edit-input" id="edit_mat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_materno']); ?>" placeholder="A. Mat">
-                                </div>
+                                <input type="text" class="edit-input" id="edit_correo_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['correo_electronico'] ?? ''); ?>" placeholder="Correo">
+                                <input type="text" class="edit-input" id="edit_tel_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['telefono'] ?? ''); ?>" placeholder="Teléfono">
                             </div>
                         </td>
 
                         <td>
                             <div class="view-mode">
-                                <span class="col-user"><i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($row['usuario']); ?></span>
-                                <div style="display:flex; align-items:center; gap:5px; color:#6b7280; font-size:0.9em;">
+                                <span class="col-user" style="display:block; margin-bottom:4px; width: fit-content;"><i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($row['usuario']); ?></span>
+                                <div style="font-size:0.75em; color:#6b7280; font-weight: 500;">Oficio: <?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></div>
+                                <div style="display:flex; align-items:center; gap:5px; color:#6b7280; font-size:0.9em; margin-top:4px;">
                                     <i class="fas fa-key" style="font-size:0.8em;"></i>
                                     <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly style="border:none; background:transparent; width:80px; font-family:monospace; color:#374151;">
                                     <i class="fas fa-eye" onclick="togglePassword(<?php echo $row['id']; ?>)" style="cursor:pointer; color:var(--brand-color);" title="Ver"></i>
                                 </div>
                             </div>
                             <div class="edit-mode hidden">
+                                <input type="text" class="edit-input" id="edit_oficio_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['num_oficio']); ?>" placeholder="No. Oficio">
                                 <input type="text" class="edit-input" id="edit_user_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['usuario']); ?>">
                                 <input type="text" class="edit-input" id="edit_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>">
                             </div>
@@ -285,7 +305,7 @@ include 'header.php';
                             </div>
                         </td>
                     </tr>
-                    <?php endwhile; ?>
+                <?php endwhile; endif; ?>
                 </tbody>
             </table>
         </div>
@@ -359,12 +379,13 @@ include 'header.php';
             doc.text(`Generado el: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 14, 26);
             if(busqueda) doc.text(`Filtro aplicado: "${busqueda}"`, 14, 31);
 
-            const columnas = ["Secretaría", "Dirección / Área", "Oficio", "Nombre Completo", "Usuario"];
+            const columnas = ["Secretaría", "Dirección / Área", "Oficio", "Nombre y Cargo", "Contacto", "Usuario"];
             const filas = datos.map(row => [
                 row.nombre_secretaria || 'Sin asignar',
                 row.nombre_direccion || '---',
-                row.num_oficio,
-                row.nombre_completo,
+                row.num_oficio || '---',
+                `${row.nombre_completo}\n${row.cargo || 'Sin cargo'}`,
+                `${row.correo_electronico || 'Sin correo'}\n${row.telefono || 'Sin tel'}`,
                 row.usuario
             ]);
 
@@ -428,6 +449,9 @@ include 'header.php';
         data.append('apellido_materno', document.getElementById(`edit_mat_${id}`).value);
         data.append('usuario', document.getElementById(`edit_user_${id}`).value);
         data.append('contrasena', document.getElementById(`edit_pass_${id}`).value);
+        data.append('cargo', document.getElementById(`edit_cargo_${id}`).value);
+        data.append('correo_electronico', document.getElementById(`edit_correo_${id}`).value);
+        data.append('telefono', document.getElementById(`edit_tel_${id}`).value);
 
         Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
         fetch('actualizar_usuario.php', { method: 'POST', body: data })

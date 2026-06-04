@@ -22,6 +22,9 @@ $ap_pat = $_POST['apellido_paterno'] ?? '';
 $ap_mat = $_POST['apellido_materno'] ?? '';
 $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
+$cargo = $_POST['cargo'] ?? '';
+$correo = $_POST['correo_electronico'] ?? '';
+$telefono = $_POST['telefono'] ?? '';
 
 if ($id <= 0 || empty($id_direccion) || empty($nombres)) {
     echo json_encode(['success' => false, 'message' => 'Datos incompletos.']);
@@ -37,14 +40,17 @@ $sql = "UPDATE registros_ad SET
             apellido_paterno = ?, 
             apellido_materno = ?, 
             usuario = ?, 
-            contrasena = ? 
+            contrasena = ?,
+            cargo = ?,
+            correo_electronico = ?,
+            telefono = ?
         WHERE id = ?";
 
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // i (int), s (string) x 6, i (int)
-    $stmt->bind_param("issssssi", 
+    // i (int), s (string) x 9, i (int)
+    $stmt->bind_param("isssssssssi", 
         $id_direccion, 
         $num_oficio, 
         $nombres, 
@@ -52,6 +58,9 @@ if ($stmt) {
         $ap_mat, 
         $usuario, 
         $contrasena,
+        $cargo,
+        $correo,
+        $telefono,
         $id
     );
 

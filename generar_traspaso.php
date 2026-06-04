@@ -110,9 +110,10 @@ include 'header.php';
                     <input type="text" id="area" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" placeholder="Ej. Unidad de Parque Vehicular" required>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Recibe (Nombre - Puesto)</label>
-                    <input type="text" id="recibe" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" placeholder="Ej. C. Miguel Ángel Espinosa Lozada - Jefe de Unidad..." required>
+                <div class="relative">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Recibe (Nombre - Cargo)</label>
+                    <input type="text" id="recibe" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" placeholder="Ej. C. Miguel Ángel Espinosa Lozada - Jefe de Unidad..." autocomplete="off" required>
+                    <div id="lista_sugerencias_recibe" class="absolute w-full bg-white border border-gray-300 rounded-b-md shadow-lg z-10 hidden max-h-48 overflow-y-auto"></div>
                 </div>
 
                 <div>
@@ -327,6 +328,51 @@ include 'header.php';
         alert("No se pudo cargar la imagen de fondo.");
     };
 }
+
+    // --- AUTOCOMPLETADO INTELIGENTE PARA EL USUARIO QUE RECIBE ---
+    let usuariosGlobal = [];
+    document.addEventListener('DOMContentLoaded', () => {
+        // Reutilizamos el endpoint PDF que trae todos los usuarios de Active Directory
+        fetch('consultar_usuarios.php?ajax_pdf=1')
+            .then(res => res.json())
+            .then(data => { usuariosGlobal = data; });
+    });
+
+    const inputRecibe = document.getElementById('recibe');
+    const cajaSugerencias = document.getElementById('lista_sugerencias_recibe');
+    const inputArea = document.getElementById('area');
+
+    inputRecibe.addEventListener('input', function() {
+        const texto = this.value.toLowerCase();
+        cajaSugerencias.innerHTML = '';
+        
+        if (texto === '') { cajaSugerencias.classList.add('hidden'); return; }
+
+        const coincidencias = usuariosGlobal.filter(u => 
+            (u.nombre_completo && u.nombre_completo.toLowerCase().includes(texto)) ||
+            (u.cargo && u.cargo.toLowerCase().includes(texto)) ||
+            (u.nombre_direccion && u.nombre_direccion.toLowerCase().includes(texto))
+        );
+
+        if (coincidencias.length > 0) {
+            cajaSugerencias.classList.remove('hidden');
+            coincidencias.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'p-3 border-b hover:bg-indigo-50 cursor-pointer text-sm transition-colors';
+                div.innerHTML = `<div class="font-bold text-primary-dark">${c.nombre_completo}</div><div class="text-xs text-gray-600">${c.cargo || 'Sin cargo'} | ${c.nombre_direccion || 'Sin área'}</div>`;
+                div.addEventListener('click', function() {
+                    inputRecibe.value = `${c.nombre_completo} - ${c.cargo || 'Sin cargo'}`; 
+                    if (c.nombre_direccion && !inputArea.value) inputArea.value = c.nombre_direccion;
+                    cajaSugerencias.classList.add('hidden'); 
+                });
+                cajaSugerencias.appendChild(div);
+            });
+        } else { cajaSugerencias.classList.add('hidden'); }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target !== inputRecibe) cajaSugerencias.classList.add('hidden');
+    });
 </script>
 
 </body>

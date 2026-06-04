@@ -98,6 +98,20 @@ include 'header.php';
                     <input type="text" name="apellido_materno" placeholder="Ej: MZARLIK" required>
                 </div>
             </div>
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Cargo / Puesto:</label>
+                    <input type="text" name="cargo" placeholder="Ej: Jefe de Departamento">
+                </div>
+                <div class="form-col">
+                    <label>Contacto (Correo / Teléfono):</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" name="correo_electronico" placeholder="Correo" style="flex:1;">
+                        <input type="text" name="telefono" placeholder="Teléfono" style="flex:1;">
+                    </div>
+                </div>
+            </div>
             
             <div class="form-row">
                 <div class="form-col">

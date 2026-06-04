@@ -1,7 +1,6 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // 1. SEGURIDAD: Verifica si el usuario está logueado y si tiene rol de 'admin'
 if (!isset($_SESSION['usuario']) || ($_SESSION['rol'] ?? '') !== 'admin') {
@@ -41,7 +40,8 @@ if (isset($_GET['ajax'])) {
         $stmt_total->bind_param($types, ...$params);
     }
     $stmt_total->execute();
-    $total_registros = $stmt_total->get_result()->fetch_assoc()["total"];
+    $res_total = $stmt_total->get_result();
+    $total_registros = $res_total ? $res_total->fetch_assoc()["total"] : 0;
     $stmt_total->close();
 
     $total_paginas = ceil($total_registros / $registros_por_pagina);
@@ -397,8 +397,8 @@ function verDetalles(index) {
     const imagenSrc = item.ruta_imagen ? item.ruta_imagen : 'img/placeholder-equipo.png';
 
     content.innerHTML = `
-        <div class="col-span-1 md:col-span-2 text-center">
-            <img src="${imagenSrc}" class="w-full max-h-64 object-contain rounded-lg border shadow-sm mx-auto" onerror="this.src='img/placeholder-equipo.png'">
+        <div class="col-span-1 md:col-span-2 flex justify-center items-center bg-gray-100 rounded-lg p-4 border shadow-inner min-h-[200px]">
+            <img src="${imagenSrc}" class="max-w-full h-auto max-h-[300px] object-contain drop-shadow-md rounded" onerror="this.src='img/placeholder-equipo.png'">
         </div>
         <div>
             <p class="text-sm text-gray-500 font-bold uppercase">Tipo</p>

@@ -24,6 +24,9 @@ $ap_pat = $_POST['apellido_paterno'] ?? '';
 $ap_mat = $_POST['apellido_materno'] ?? '';
 $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
+$cargo = $_POST['cargo'] ?? '';
+$correo = $_POST['correo_electronico'] ?? '';
+$telefono = $_POST['telefono'] ?? '';
 
 // Validar campos obligatorios
 if (empty($id_direccion) || empty($nombres) || empty($usuario)) {

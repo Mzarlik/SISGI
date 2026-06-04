@@ -2,7 +2,6 @@
 // consultar_licencias.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // Ocultar errores técnicos
 error_reporting(0);

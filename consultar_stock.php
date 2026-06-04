@@ -1,7 +1,6 @@
 <?php 
 require_once 'session_check.php';
 require_once 'config.php'; 
-session_start();
 
 // 1. SEGURIDAD DE SESIÓN
 if (!isset($_SESSION['usuario'])) { 
@@ -42,7 +41,8 @@ if (isset($_GET['ajax'])) {
 
     // Contar total
     $count_sql = "SELECT COUNT(id) AS total FROM stock_material" . $where_clause;
-    $total_registros = $conn->query($count_sql)->fetch_assoc()['total'];
+    $resCount = $conn->query($count_sql);
+    $total_registros = $resCount ? $resCount->fetch_assoc()['total'] : 0;
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
     // Consulta de datos
@@ -50,8 +50,10 @@ if (isset($_GET['ajax'])) {
     $result = $conn->query($sql);
     
     $datos = [];
-    while($row = $result->fetch_assoc()) {
-        $datos[] = $row;
+    if ($result) {
+        while($row = $result->fetch_assoc()) {
+            $datos[] = $row;
+        }
     }
 
     echo json_encode([

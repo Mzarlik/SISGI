@@ -2,7 +2,6 @@
 // consultar_equipos.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // 1. Verificar Sesión
 if (!isset($_SESSION['usuario'])) {
@@ -68,7 +67,7 @@ $sql_total = "SELECT COUNT(*) AS total
               LEFT JOIN cuentas_office co ON e.id_cuenta_office = co.id
               $whereSQL";
 $result_total = $conn->query($sql_total);
-$totalRegistros = $result_total->fetch_assoc()['total'];
+$totalRegistros = $result_total ? $result_total->fetch_assoc()['total'] : 0;
 $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
 ?>
 

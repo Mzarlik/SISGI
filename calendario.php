@@ -1,7 +1,6 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // 1. SEGURIDAD
 if (!isset($_SESSION['usuario'])) {
