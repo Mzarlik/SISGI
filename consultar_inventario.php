@@ -173,7 +173,10 @@ if (isset($_GET['ajax'])) {
         </table>
     </div>
 
-    <div id="paginacion" class="mt-8 flex justify-center gap-2"></div>
+    <div id="paginacion-container" class="mt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-600">
+        <div id="paginacion-info" class="text-center sm:text-left"></div>
+        <div id="paginacion-botones" class="flex items-center gap-1 flex-wrap justify-center"></div>
+    </div>
 </div>
 
 <script>
@@ -464,16 +467,65 @@ if (isset($_GET['ajax'])) {
     }
 
     function renderizarPaginacion(meta) {
-        const div = document.getElementById('paginacion');
-        div.innerHTML = '';
-        if (meta.total_paginas <= 1) return;
-        for (let i = 1; i <= meta.total_paginas; i++) {
-            const btn = document.createElement('button');
-            btn.innerText = i;
-            btn.className = `w-10 h-10 rounded-full font-bold border transition ${i === meta.pagina_actual ? 'bg-primary-dark text-white' : 'bg-white text-gray-600 hover:bg-primary-light hover:text-white'}`;
-            btn.onclick = () => { paginaActual = i; cargarDatos(); };
-            div.appendChild(btn);
+        const infoContainer = document.getElementById('paginacion-info');
+        const botonesContainer = document.getElementById('paginacion-botones');
+        const divPaginacion = document.getElementById('paginacion-container');
+
+        if (infoContainer) infoContainer.innerHTML = '';
+        if (botonesContainer) botonesContainer.innerHTML = '';
+        if (!divPaginacion) return;
+
+        if (meta.total_registros == 0) {
+            divPaginacion.classList.add('hidden');
+            return;
         }
+        
+        divPaginacion.classList.remove('hidden');
+
+        const registrosPorPagina = 10;
+        const inicio = (meta.pagina_actual - 1) * registrosPorPagina + 1;
+        const fin = Math.min(meta.pagina_actual * registrosPorPagina, meta.total_registros);
+        if (infoContainer) {
+            infoContainer.innerText = `Mostrando ${inicio} a ${fin} de ${meta.total_registros} resultados`;
+        }
+
+        if (meta.total_paginas <= 1) return;
+
+        const crearBoton = (texto, pagina, activo = false, deshabilitado = false) => {
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.innerHTML = texto;
+            btn.disabled = deshabilitado;
+
+            let clases = "px-3 py-1 rounded-md border transition-colors text-sm font-medium ";
+            if (activo) {
+                clases += "bg-primary-dark text-white border-primary-dark shadow-sm cursor-default";
+            } else if (deshabilitado) {
+                clases += "bg-transparent text-gray-400 border-transparent cursor-default";
+            } else {
+                clases += "bg-white text-gray-600 border-gray-200 hover:bg-gray-50";
+            }
+            btn.className = clases;
+
+            if (!deshabilitado && !activo) {
+                btn.onclick = () => { paginaActual = pagina; cargarDatos(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+            }
+            return btn;
+        };
+
+        const total = meta.total_paginas;
+        const actual = meta.pagina_actual;
+        const rango = 1;
+
+        if (actual > 1) { botonesContainer.appendChild(crearBoton('<i class="fas fa-chevron-left text-xs"></i>', actual - 1)); }
+        for (let i = 1; i <= total; i++) {
+            if (i === 1 || i === total || (i >= actual - rango && i <= actual + rango)) {
+                botonesContainer.appendChild(crearBoton(i, i, i === actual));
+            } else if (i === actual - rango - 1 || i === actual + rango + 1) {
+                botonesContainer.appendChild(crearBoton('...', null, false, true));
+            }
+        }
+        if (actual < total) { botonesContainer.appendChild(crearBoton('<i class="fas fa-chevron-right text-xs"></i>', actual + 1)); }
     }
 </script>
 </body>
