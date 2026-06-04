@@ -25,3 +25,4 @@ $stmt->bind_param("ss", $usuario, $password_hash);
 
 echo $stmt->execute() ? "Usuario admin creado correctamente." : "Error: " . $stmt->error;
 ?>
+
