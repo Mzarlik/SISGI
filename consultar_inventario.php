@@ -40,6 +40,7 @@ if (isset($_GET['ajax'])) {
     if (!empty($search_term)) {
         $safe_term = $conn->real_escape_string($search_term);
         $conditions[] = "(inv.num_inventario LIKE '%$safe_term%' OR 
+                        inv.no_bien_mueble LIKE '%$safe_term%' OR 
                         tbi.nombre_tipo LIKE '%$safe_term%' OR 
                         inv.marca LIKE '%$safe_term%' OR 
                         inv.modelo LIKE '%$safe_term%' OR 
@@ -62,7 +63,7 @@ if (isset($_GET['ajax'])) {
     $total_registros = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
-    $columnas = "inv.id, inv.num_inventario, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ubicacion, inv.ruta_foto";
+    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ubicacion, inv.ruta_foto";
     
     $sql = "SELECT $columnas FROM inventario_soporte inv 
             LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo 
@@ -110,6 +111,7 @@ if (isset($_GET['ajax'])) {
         <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
             <i class="fas fa-laptop"></i> Inventario de Equipos 
             <span id="total-lbl" class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full italic">...</span>
+            <span id="seleccion-lbl" class="ml-2 text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold hidden">0 seleccionados</span>
         </h2>
         <div id="loading" style="display:none;" class="animate-pulse text-primary-dark font-bold">
             <i class="fas fa-spinner fa-spin"></i> Cargando...
@@ -166,7 +168,7 @@ if (isset($_GET['ajax'])) {
                         <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
                     </th>
                     <th class="px-4 py-4 text-center">Foto</th>
-                    <th class="px-4 py-4 text-left">Inventario</th>
+                    <th class="px-4 py-4 text-left">No. Bien Mueble</th>
                     <th class="px-4 py-4 text-left">Tipo / Marca</th>
                     <th class="px-4 py-4 text-left">Responsable</th>
                     <th class="px-4 py-4 text-center">Acciones</th>
@@ -188,6 +190,7 @@ if (isset($_GET['ajax'])) {
     let filtroUsuario = '';
     let timeoutBusqueda = null;
     let datosActuales = []; 
+    let equiposSeleccionadosMap = new Map(); // Variable para guardar selecciones globales
     const esAdmin = <?= $esAdmin ? 'true' : 'false' ?>;
     const BASE_URL_IMAGENES = '../inventario/';
 
@@ -246,19 +249,20 @@ if (isset($_GET['ajax'])) {
 
         datos.forEach(row => {
             let iconoFotoHTML = row.ruta_foto 
-                ? `<button onclick="verImagen('${BASE_URL_IMAGENES}${row.ruta_foto}', '${row.num_inventario}')" class="text-indigo-600 hover:text-indigo-800 transition transform hover:scale-110"><i class="fas fa-image text-2xl"></i></button>`
+                ? `<button onclick="verImagen('${BASE_URL_IMAGENES}${row.ruta_foto}', '${row.no_bien_mueble || 'S/N'}')" class="text-indigo-600 hover:text-indigo-800 transition transform hover:scale-110"><i class="fas fa-image text-2xl"></i></button>`
                 : `<span class="text-gray-300"><i class="fas fa-image text-2xl"></i></span>`;
 
             const tr = document.createElement('tr');
             tr.className = "hover:bg-gray-50 transition-colors";
+            let isChecked = equiposSeleccionadosMap.has(Number(row.id)) ? 'checked' : '';
             
             // Renderizamos la fila, incluyendo el botón de edición si es administrador
             tr.innerHTML = `
                 <td class="px-4 py-4 text-center">
-                    <input type="checkbox" class="cb-equipo w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" value="${row.id}">
+                    <input type="checkbox" class="cb-equipo w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" value="${row.id}" onchange="toggleSeleccion(this, ${row.id})" ${isChecked}>
                 </td>
                 <td class="px-4 py-4 text-center">${iconoFotoHTML}</td>
-                <td class="px-4 py-4 font-bold text-primary-dark">${row.num_inventario}</td>
+                <td class="px-4 py-4 font-bold text-primary-dark">${row.no_bien_mueble || 'S/N'}</td>
                 <td class="px-4 py-4">
                     <span class="text-xs text-gray-400 uppercase block font-semibold">${row.nombre_tipo || 'N/A'}</span>
                     <span class="font-medium text-gray-800">${row.marca}</span>
@@ -374,7 +378,7 @@ if (isset($_GET['ajax'])) {
         const detallesHtml = `
             <div class="text-left text-sm text-gray-700 p-2">
                 <div class="grid grid-cols-2 gap-4 mb-4 border-b pb-3">
-                    <div><span class="block text-xs text-gray-400 uppercase">Inventario</span><span class="font-bold text-lg text-primary-dark">${row.num_inventario}</span></div>
+                    <div><span class="block text-xs text-gray-400 uppercase">No. Bien Mueble</span><span class="font-bold text-lg text-primary-dark">${row.no_bien_mueble || 'S/N'}</span></div>
                     <div><span class="block text-xs text-gray-400 uppercase">Responsable</span><span class="font-semibold text-gray-800">${row.personal_asignado || 'STOCK'}</span></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
@@ -401,46 +405,69 @@ if (isset($_GET['ajax'])) {
         });
     }
 
-    function verImagen(ruta, num_inv) {
-        Swal.fire({ title: `Evidencia: ${num_inv}`, imageUrl: ruta, imageWidth: '100%', confirmButtonText: 'Cerrar', confirmButtonColor: '#721538' });
+    function verImagen(ruta, num_bien) {
+        Swal.fire({ title: `Evidencia: ${num_bien}`, imageUrl: ruta, imageWidth: '100%', confirmButtonText: 'Cerrar', confirmButtonColor: '#721538' });
+    }
+
+    function actualizarContadorSeleccionados() {
+        const lbl = document.getElementById('seleccion-lbl');
+        if (equiposSeleccionadosMap.size > 0) {
+            lbl.innerText = `${equiposSeleccionadosMap.size} seleccionado(s)`;
+            lbl.classList.remove('hidden');
+        } else {
+            lbl.classList.add('hidden');
+        }
+    }
+
+    function toggleSeleccion(cb, id) {
+        if (cb.checked) {
+            const row = datosActuales.find(r => r.id == id);
+            if (row) equiposSeleccionadosMap.set(Number(id), row);
+        } else {
+            equiposSeleccionadosMap.delete(Number(id));
+        }
+        actualizarContadorSeleccionados();
     }
 
     function toggleSelectAll() {
         const isChecked = document.getElementById('selectAll').checked;
         const checkboxes = document.querySelectorAll('.cb-equipo');
-        checkboxes.forEach(cb => cb.checked = isChecked);
+        checkboxes.forEach(cb => {
+            cb.checked = isChecked;
+            const id = Number(cb.value);
+            if (isChecked) {
+                const row = datosActuales.find(r => r.id == id);
+                if (row) equiposSeleccionadosMap.set(id, row);
+            } else {
+                equiposSeleccionadosMap.delete(id);
+            }
+        });
+        actualizarContadorSeleccionados();
     }
 
     function iniciarTraspaso() {
-        const checkboxesSeleccionados = document.querySelectorAll('.cb-equipo:checked');
-        if (checkboxesSeleccionados.length === 0) {
+        if (equiposSeleccionadosMap.size === 0) {
             Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#4f46e5' });
             return;
         }
-        const ids = Array.from(checkboxesSeleccionados).map(cb => cb.value);
+        const ids = Array.from(equiposSeleccionadosMap.keys());
         window.location.href = `generar_traspaso.php?equipos=${ids.join(',')}`;
     }
 
     function iniciarResguardo() {
-        const checkboxesSeleccionados = document.querySelectorAll('.cb-equipo:checked');
-        if (checkboxesSeleccionados.length === 0) {
+        if (equiposSeleccionadosMap.size === 0) {
             Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#721538' });
             return;
         }
 
-        const bienesSeleccionados = [];
+        const bienesSeleccionados = Array.from(equiposSeleccionadosMap.values());
         let responsable = '';
         let ubicacion = '';
 
         // Recolectar datos de los equipos seleccionados
-        checkboxesSeleccionados.forEach(cb => {
-            const bien = datosActuales.find(r => r.id == cb.value);
-            if(bien) {
-                bienesSeleccionados.push(bien);
-                // Tratamos de deducir el responsable y ubicación a partir del primer equipo
-                if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
-                if(!ubicacion && bien.ubicacion) ubicacion = bien.ubicacion;
-            }
+        bienesSeleccionados.forEach(bien => {
+            if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
+            if(!ubicacion && bien.ubicacion) ubicacion = bien.ubicacion;
         });
 
         generarHojaResguardo(responsable || '_______________________________', ubicacion || '_______________________________', bienesSeleccionados);
@@ -511,7 +538,7 @@ if (isset($_GET['ajax'])) {
             return [
                 (index + 1).toString(),
                 descripcion,
-                bien.num_inventario || 'S/N',
+                bien.no_bien_mueble || 'S/N',
                 bien.num_serie || 'S/N',
                 'Buen Estado',
                 bien.ubicacion || ubicacion,
@@ -591,9 +618,9 @@ if (isset($_GET['ajax'])) {
                     doc.text(`Filtrado por responsable: ${personalActual}`, 14, 21);
                 }
                 
-                const columnas = ["Inventario", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Ubicación", "Descripción"];
+                const columnas = ["No. Bien Mueble", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Ubicación", "Descripción"];
                 const filas = res.data.map(item => [
-                    item.num_inventario, 
+                    item.no_bien_mueble || 'S/N', 
                     item.nombre_tipo || 'N/A', 
                     item.marca, 
                     item.modelo, 

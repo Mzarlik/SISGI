@@ -24,7 +24,7 @@ if (empty($ids_array)) {
 
 // 3. CONSULTAR LA INFORMACIÓN DE LOS EQUIPOS SELECCIONADOS
 $in_clause = implode(',', $ids_array);
-$sql = "SELECT inv.num_inventario, tbi.nombre_tipo, inv.marca, inv.modelo, inv.num_serie, inv.personal_asignado 
+$sql = "SELECT inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.marca, inv.modelo, inv.num_serie, inv.personal_asignado 
         FROM inventario_soporte inv 
         LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo 
         WHERE inv.id IN ($in_clause)";
@@ -144,7 +144,7 @@ include 'header.php';
                 <table class="min-w-full divide-y divide-gray-200 border">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Inventario</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">No. Bien Mueble</th>
                             <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Descripción</th>
                             <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Modelo</th>
                             <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Marca</th>
@@ -154,7 +154,7 @@ include 'header.php';
                     <tbody class="divide-y divide-gray-200">
                         <?php foreach($equipos as $eq): ?>
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm font-bold text-primary-dark"><?php echo htmlspecialchars($eq['num_inventario']); ?></td>
+                            <td class="px-4 py-3 text-sm font-bold text-primary-dark"><?php echo htmlspecialchars($eq['no_bien_mueble'] ?? 'S/N'); ?></td>
                             <td class="px-4 py-3 text-sm text-gray-600 uppercase"><?php echo htmlspecialchars($eq['nombre_tipo'] ?? 'EQUIPO DE CÓMPUTO'); ?></td>
                             <td class="px-4 py-3 text-sm text-gray-800"><?php echo htmlspecialchars($eq['modelo']); ?></td>
                             <td class="px-4 py-3 text-sm text-gray-800"><?php echo htmlspecialchars($eq['marca']); ?></td>
@@ -245,9 +245,9 @@ include 'header.php';
         doc.autoTable({
             startY: y,
             margin: { left: margenIzquierdo, right: margenDerecho },
-            head: [['INVENTARIO', 'DESCRIPCIÓN', 'MODELO', 'MARCA', 'SERIE']],
+            head: [['NO. BIEN MUEBLE', 'DESCRIPCIÓN', 'MODELO', 'MARCA', 'SERIE']],
             body: equiposSeleccionados.map(eq => [
-                eq.num_inventario,
+                eq.no_bien_mueble || 'S/N',
                 (eq.nombre_tipo || 'EQUIPO').toUpperCase(),
                 eq.modelo,
                 eq.marca,
@@ -255,14 +255,25 @@ include 'header.php';
             ]),
             theme: 'grid',
             styles: { fontSize: 8, halign: 'center' },
-            headStyles: { fillColor: [114, 21, 56] }
+            headStyles: { fillColor: [114, 21, 56] },
+            didDrawPage: function (data) {
+                // Si la tabla es muy larga y crea una página nueva, volvemos a pintar el fondo
+                if (data.pageNumber > 1) {
+                    doc.addImage(imgFondo, 'PNG', 0, 0, pageWidth, pageHeight);
+                }
+            }
         });
-        y = pageHeight - 125; 
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        
         // --- 6. DESPEDIDA Y FIRMAS ---
-        y = pageHeight - 135; // Ajuste para que quede en la parte inferior
+        let finalY = doc.lastAutoTable.finalY + 15;
+
+        // Si no hay suficiente espacio para la despedida y las firmas (aprox 80mm), creamos nueva página
+        if (finalY > pageHeight - 80) {
+            doc.addPage();
+            doc.addImage(imgFondo, 'PNG', 0, 0, pageWidth, pageHeight);
+            finalY = 45; 
+        }
+        y = finalY;
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
