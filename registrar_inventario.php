@@ -2,7 +2,6 @@
 // Incluye la configuración de la base de datos y maneja la sesión
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // Redirige si el usuario no está autenticado
 if (!isset($_SESSION['usuario'])) {
@@ -87,11 +86,35 @@ if ($conn) {
     <div class="card">
         <h2>Registro de Inventario | Soporte</h2>
         <form id="formInventario" enctype="multipart/form-data">
+            <!-- SECCIÓN 1: IDENTIFICACIÓN Y ESTADO -->
             <div class="form-row">
                 <div class="form-col">
                     <label for="num_inventario">Número de Inventario:</label>
                     <input type="text" id="num_inventario" name="num_inventario" placeholder="Ej: AS-2024-0001" required>
                 </div>
+                <div class="form-col">
+                    <label for="municipio">Municipio:</label>
+                    <input type="text" id="municipio" name="municipio" value="Benito Juárez">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="estatus">Estatus:</label>
+                    <select id="estatus" name="estatus" required>
+                        <option value="En Stock" selected>En Stock</option>
+                        <option value="Asignado">Asignado</option>
+                        <option value="En Mantenimiento">En Mantenimiento</option>
+                        <option value="Para Baja">Para Baja</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label for="color">Color:</label>
+                    <input type="text" id="color" name="color" placeholder="Ej: Negro, Gris, Blanco">
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: DETALLES DEL EQUIPO -->
+            <div class="form-row">
                 <div class="form-col">
                     <label for="id_tipo_bien">Tipo de Equipo:</label>
                     <select id="id_tipo_bien" name="id_tipo_bien" required>
@@ -107,21 +130,21 @@ if ($conn) {
                         ?>
                     </select>
                 </div>
-            </div>
-
-            <div class="form-row">
                 <div class="form-col">
                     <label for="marca">Marca:</label>
                     <input type="text" id="marca" name="marca" placeholder="Ej: Dell, HP, Samsung..." required>
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-col">
                     <label for="modelo">Modelo:</label>
                     <input type="text" id="modelo" name="modelo" placeholder="Ej: Latitude 5420, P2422H" required>
                 </div>
+                <div class="form-col">
+                    <label for="num_serie">Número de Serie:</label>
+                    <input type="text" id="num_serie" name="num_serie" placeholder="S/N o Service Tag" required>
+                </div>
             </div>
-
-<label for="num_serie">Número de Serie:</label>
-            <input type="text" id="num_serie" name="num_serie" placeholder="S/N o Service Tag" required>
             
             <div id="contenedor_perifericos" style="display: none; background-color: #e9ecef; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px dashed #721538;">
                 <label style="margin-bottom: 10px; color: #721538;"><i class="fas fa-keyboard"></i> Este equipo es un CPU. ¿Incluye periféricos con el mismo número de inventario?</label>
@@ -136,7 +159,8 @@ if ($conn) {
             </div>
             <label for="descripcion">Descripción / Especificaciones:</label>
             <textarea id="descripcion" name="descripcion" rows="3" placeholder="Detalles de hardware, sistema operativo, accesorios, etc."></textarea>
-            
+
+            <!-- SECCIÓN 3: ASIGNACIÓN Y EVIDENCIA -->
             <div class="form-row">
                 <div class="form-col">
                     <label for="personal_asignado">Personal Asignado:</label>

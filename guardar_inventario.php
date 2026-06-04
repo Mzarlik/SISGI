@@ -19,18 +19,25 @@ if (!$conn) {
 }
 
 // 1. Recibir y limpiar los datos del POST
-$num_inventario = $conn->real_escape_string(trim($_POST['num_inventario'] ?? ''));
+$num_inventario = trim($_POST['num_inventario'] ?? '');
 $id_tipo_bien = (int)($_POST['id_tipo_bien'] ?? 0);
-$marca = $conn->real_escape_string(trim($_POST['marca'] ?? ''));
-$modelo = $conn->real_escape_string(trim($_POST['modelo'] ?? ''));
-$num_serie = $conn->real_escape_string(trim($_POST['num_serie'] ?? ''));
-$descripcion = $conn->real_escape_string(trim($_POST['descripcion'] ?? ''));
-$personal_asignado = $conn->real_escape_string(trim($_POST['personal_asignado'] ?? 'STOCK'));
-$ubicacion = $conn->real_escape_string(trim($_POST['ubicacion'] ?? ''));
+$marca = trim($_POST['marca'] ?? '');
+$modelo = trim($_POST['modelo'] ?? '');
+$num_serie = trim($_POST['num_serie'] ?? '');
+$descripcion = trim($_POST['descripcion'] ?? '');
+$personal_asignado = trim($_POST['personal_asignado'] ?? 'STOCK');
+if(empty($personal_asignado)) $personal_asignado = 'STOCK';
+$ubicacion = trim($_POST['ubicacion'] ?? '');
+// Nuevos campos
+$estatus = trim($_POST['estatus'] ?? 'En Stock');
+$municipio = trim($_POST['municipio'] ?? '');
+$color = trim($_POST['color'] ?? '');
+
 
 // Validación básica
 if (empty($num_inventario) || empty($id_tipo_bien) || empty($marca) || empty($modelo) || empty($num_serie) || empty($ubicacion)) {
     echo json_encode(['success' => false, 'message' => 'Por favor, completa todos los campos obligatorios.']);
+    $conn->close();
     exit();
 }
 
@@ -56,6 +63,7 @@ if (!empty($texto_perifericos)) {
 
 // 2. Procesamiento de la Imagen y Creación de Carpetas
 $ruta_guardado_db = null;
+$ruta_archivo_final = null;
 
 // Cuando los sistemas se ejecutan en entornos de red locales o NAS (como Web Station), 
 // es más seguro y eficiente usar rutas relativas desde donde se ejecuta este script PHP
@@ -72,6 +80,7 @@ if (!file_exists($ruta_destino)) {
     // 0777 asegura permisos amplios, true permite crear estructura de árbol si es necesario
     if (!mkdir($ruta_destino, 0777, true)) {
         echo json_encode(['success' => false, 'message' => 'No se pudo crear la carpeta para la evidencia. Verifica los permisos del servidor.']);
+        $conn->close();
         exit();
     }
 }
@@ -88,6 +97,7 @@ if (isset($_FILES['foto_evidencia']) && $_FILES['foto_evidencia']['error'] === U
     $extensiones_validas = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     if (!in_array($extension, $extensiones_validas)) {
         echo json_encode(['success' => false, 'message' => 'El archivo no es una imagen válida.']);
+        $conn->close();
         exit();
     }
 
@@ -99,35 +109,50 @@ if (isset($_FILES['foto_evidencia']) && $_FILES['foto_evidencia']['error'] === U
         $ruta_guardado_db = $carpeta_segura . '/' . $nuevo_nombre;
     } else {
         echo json_encode(['success' => false, 'message' => 'Error al mover la imagen a la carpeta destino.']);
+        $conn->close();
         exit();
     }
 } else {
     echo json_encode(['success' => false, 'message' => 'La foto de evidencia es obligatoria o superó el tamaño permitido.']);
+    $conn->close();
     exit();
 }
 
 // 3. Inserción en la Base de Datos
 // Ajusta "ruta_foto" al nombre real de la columna que uses en tu tabla inventario_soporte
-$sql_insert = "INSERT INTO inventario_soporte 
-    (num_inventario, id_tipo_bien, marca, modelo, num_serie, descripcion, personal_asignado, ubicacion, ruta_foto) 
-    VALUES 
-    ('$num_inventario', $id_tipo_bien, '$marca', '$modelo', '$num_serie', '$descripcion', '$personal_asignado', '$ubicacion', '$ruta_guardado_db')";
+$sql_insert = "INSERT INTO inventario_soporte
+    (num_inventario, id_tipo_bien, marca, modelo, num_serie, descripcion, personal_asignado, ubicacion, ruta_foto, estatus, municipio, color)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-if ($conn->query($sql_insert) === TRUE) {
+$stmt = $conn->prepare($sql_insert);
+if ($stmt === false) {
+    echo json_encode(['success' => false, 'message' => 'Error al preparar la consulta: ' . $conn->error]);
+    $conn->close();
+    exit();
+}
+
+// s: string, i: integer
+$stmt->bind_param("sissssssssss", 
+    $num_inventario, $id_tipo_bien, $marca, $modelo, $num_serie, 
+    $descripcion, $personal_asignado, $ubicacion, $ruta_guardado_db,
+    $estatus, $municipio, $color
+);
+
+if ($stmt->execute()) {
     echo json_encode([
         'success' => true, 
         'message' => 'El equipo se ha registrado correctamente con su evidencia fotográfica.'
     ]);
 } else {
-    // Si la base de datos falla, es buena práctica intentar borrar la foto que acabamos de subir
     if (file_exists($ruta_archivo_final)) {
         unlink($ruta_archivo_final);
     }
     echo json_encode([
         'success' => false, 
-        'message' => 'Error al registrar en la base de datos: ' . $conn->error
+        'message' => 'Error al registrar en la base de datos: ' . $stmt->error
     ]);
 }
 
+$stmt->close();
 $conn->close();
 ?>
