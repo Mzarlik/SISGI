@@ -7,7 +7,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // 1. SEGURIDAD DE SESIÓN
 if (!isset($_SESSION['usuario'])) {
-    header("Location: login.php");
+    header("Location: index.php");
     exit();
 }
 

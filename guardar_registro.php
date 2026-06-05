@@ -2,7 +2,9 @@
 // guardar_registro.php (VERSIÓN LIMPIA - SOLO IDs)
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['usuario']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {

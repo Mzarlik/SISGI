@@ -3,7 +3,7 @@ require_once 'session_check.php';
 require_once 'config.php'; 
 
 if (!isset($_SESSION['usuario'])) { 
-    header("Location: login.php"); 
+    header("Location: index.php"); 
     exit(); 
 }
 
@@ -68,7 +68,7 @@ if (isset($_GET['ajax'])) {
     $total_registros = $resCount ? $resCount->fetch_assoc()['total'] : 0;
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
-    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.ruta_foto";
+    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.ruta_foto, inv.estatus";
     
     // Si es para PDF o para resguardo total, quitamos el límite de paginación
     $limit_clause = " LIMIT $registros_por_pagina OFFSET $offset";
@@ -168,6 +168,9 @@ if (isset($_GET['ajax'])) {
                 </button>
                 <button onclick="iniciarResguardo()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
                     <i class="fas fa-file-signature w-6 text-center text-purple-600"></i> Generar Resguardo
+                </button>
+                <button onclick="iniciarDictamenBaja()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 transition border-b border-gray-100 font-medium">
+                    <i class="fas fa-ban w-6 text-center text-red-600"></i> Generar Baja
                 </button>
                 <button onclick="exportarPDF()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
                     <i class="fas fa-file-pdf w-6 text-center text-red-600"></i> Exportar PDF
@@ -343,6 +346,10 @@ if (isset($_GET['ajax'])) {
             `<option value="${t.id_tipo}" ${t.id_tipo == row.id_tipo_bien ? 'selected' : ''}>${t.nombre_tipo}</option>`
         ).join('');
 
+        let optionsEstatus = ['Operativo', 'Asignado', 'En Stock', 'En Mantenimiento', 'Dañado', 'Para Baja'].map(e =>
+            `<option value="${e}" ${e == (row.estatus || 'Operativo') ? 'selected' : ''}>${e}</option>`
+        ).join('');
+
         Swal.fire({
             title: '<div class="text-xl font-bold border-b pb-2">Editar Información del Bien</div>',
             html: `
@@ -356,12 +363,23 @@ if (isset($_GET['ajax'])) {
                             <select id="swal-tipo" class="swal-custom-input bg-white">${optionsTipo}</select>
                         </div>
                         <div>
-                            <label class="swal-field-label">Nombre Ubicación</label>
-                            <input id="swal-ubi" class="swal-custom-input" value="${row.nombre_ubicacion || ''}">
+                            <label class="swal-field-label">Estatus</label>
+                            <select id="swal-estatus" class="swal-custom-input bg-white">${optionsEstatus}</select>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="swal-field-label">Personal Asignado</label>
+                            <input id="swal-pers" class="swal-custom-input" list="usuarios_sugeridos_inventario" value="${row.personal_asignado || ''}" placeholder="Ej. Juan Pérez">
+                        </div>
+                        <div>
+                            <label class="swal-field-label">Área / Ubicación</label>
+                            <input id="swal-ubi" class="swal-custom-input" value="${row.nombre_ubicacion || ''}">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-2">
                         <div>
                             <label class="swal-field-label">Marca</label>
                             <input id="swal-marca" class="swal-custom-input" value="${row.marca}">
@@ -375,9 +393,6 @@ if (isset($_GET['ajax'])) {
                     <label class="swal-field-label">Número de Serie</label>
                     <input id="swal-serie" class="swal-custom-input" value="${row.num_serie}">
 
-                    <label class="swal-field-label">Personal Asignado</label>
-                    <input id="swal-pers" class="swal-custom-input" list="usuarios_sugeridos_inventario" value="${row.personal_asignado || ''}">
-
                     <label class="swal-field-label">Descripción / Notas</label>
                     <textarea id="swal-desc" class="swal-custom-textarea" rows="3">${row.descripcion || ''}</textarea>
                 </div>
@@ -388,6 +403,21 @@ if (isset($_GET['ajax'])) {
             confirmButtonText: '<i class="fas fa-save mr-2"></i> Guardar Cambios',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#721538',
+            didOpen: () => {
+                const inputPers = document.getElementById('swal-pers');
+                const inputUbi = document.getElementById('swal-ubi');
+                inputPers.addEventListener('change', () => {
+                    if(inputPers.value) {
+                        fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(inputPers.value)}`)
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.found && d.details.area && !inputUbi.value) {
+                                    inputUbi.value = d.details.area;
+                                }
+                            });
+                    }
+                });
+            },
             preConfirm: () => {
                 return {
                     id: id,
@@ -398,6 +428,7 @@ if (isset($_GET['ajax'])) {
                     modelo: document.getElementById('swal-modelo').value,
                     num_serie: document.getElementById('swal-serie').value,
                     personal_asignado: document.getElementById('swal-pers').value,
+                    estatus: document.getElementById('swal-estatus').value,
                     descripcion: document.getElementById('swal-desc').value
                 }
             }
@@ -760,6 +791,118 @@ if (isset($_GET['ajax'])) {
         };
         logoHacienda.onerror = function() {
             Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF. Verifica que los archivos "logo_gobierno.png" y "logo_hacienda.png" existan en la carpeta "img/".', 'error');
+        };
+    }
+
+    function iniciarDictamenBaja() {
+        if (equiposSeleccionadosMap.size === 0) {
+            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#721538' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Dictamen Técnico de Baja',
+            text: 'Ingresa el diagnóstico o motivo general por el que se dan de baja estos equipos:',
+            input: 'textarea',
+            inputPlaceholder: 'Ej. Equipo obsoleto que no admite reparación o actualización, daño irreparable en tarjeta madre...',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-file-pdf mr-2"></i> Generar Dictamen',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#721538'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const motivo = result.value || 'Falla grave de hardware / Obsolescencia técnica.';
+                const bienes = Array.from(equiposSeleccionadosMap.values());
+                generarPDFBaja(bienes, motivo);
+            }
+        });
+    }
+
+    function generarPDFBaja(bienes, motivo) {
+        Swal.fire({ title: 'Generando PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'pt', 'letter');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const marginLeft = 40;
+        const marginRight = 40;
+        
+        const logoGob = new Image();
+        logoGob.src = 'img/logo_gobierno.png';
+        const logoHacienda = new Image();
+        logoHacienda.src = 'img/logo_hacienda.png';
+
+        logoHacienda.onload = function() {
+            let startY = 40;
+            if(logoGob.width > 0) doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
+            startY += 75;
+
+            doc.setFontSize(14);
+            doc.setFont("Montserrat", "bold");
+            doc.setTextColor(114, 21, 56);
+            doc.text("DICTAMEN TÉCNICO DE BAJA DE EQUIPOS", pageWidth / 2, startY, { align: "center" });
+            startY += 25;
+
+            const fechaActual = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            doc.setFontSize(10);
+            doc.setFont("Montserrat", "normal");
+            doc.setTextColor(50);
+            doc.text(`Fecha de Emisión: ${fechaActual}`, pageWidth - marginRight, startY, { align: 'right' });
+            startY += 20;
+            
+            doc.setTextColor(0);
+            const parrafo = "A través del presente documento, el área de Soporte Técnico emite el diagnóstico correspondiente a los siguientes bienes, determinando que NO SON APTOS para continuar en operación debido a las condiciones técnicas especificadas:";
+            const splitText = doc.splitTextToSize(parrafo, pageWidth - (marginLeft * 2));
+            doc.text(splitText, marginLeft, startY);
+            startY += (splitText.length * 12) + 15;
+
+            const tablaBienes = bienes.map((bien, index) => [
+                (index + 1).toString(),
+                bien.no_bien_mueble || 'S/N',
+                bien.num_serie || 'S/N',
+                `${bien.nombre_tipo || ''} ${bien.marca || ''} ${bien.modelo || ''}`.trim(),
+                motivo
+            ]);
+
+            doc.autoTable({
+                startY: startY,
+                head: [['No.', 'Inventario (B.M)', 'No. Serie', 'Equipo', 'Diagnóstico Técnico']],
+                body: tablaBienes,
+                theme: 'grid',
+                headStyles: { fillColor: [114, 21, 56], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+                styles: { font: 'Montserrat', fontSize: 8, cellPadding: 4, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.5, valign: 'middle' },
+                columnStyles: { 0: { cellWidth: 25, halign: 'center' }, 4: { cellWidth: 150 } }
+            });
+
+            let finalY = doc.lastAutoTable.finalY + 50;
+            if (finalY > pageHeight - 100) { doc.addPage(); finalY = 60; }
+
+            doc.setFont("Montserrat", "bold");
+            doc.setFontSize(10);
+            doc.line(marginLeft + 40, finalY, marginLeft + 220, finalY);
+            doc.text("Realizó Diagnóstico", marginLeft + 130, finalY + 15, { align: 'center' });
+            doc.setFont("Montserrat", "normal");
+            doc.setFontSize(9);
+            doc.text("Soporte Técnico - SATQ", marginLeft + 130, finalY + 28, { align: 'center' });
+
+            doc.setFont("Montserrat", "bold");
+            doc.setFontSize(10);
+            doc.line(pageWidth - marginRight - 220, finalY, pageWidth - marginRight - 40, finalY);
+            doc.text("Vo. Bo. / Autorización", pageWidth - marginRight - 130, finalY + 15, { align: 'center' });
+            doc.setFont("Montserrat", "normal");
+            doc.setFontSize(9);
+            doc.text("Titular del Área / Enlace", pageWidth - marginRight - 130, finalY + 28, { align: 'center' });
+
+            if(logoHacienda.width > 0) doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text("Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx", marginLeft, pageHeight - 40, { align: 'left' });
+
+            doc.save(`Dictamen_Baja_${fechaActual.replace(/\//g, '')}.pdf`);
+            Swal.close();
+        };
+        logoHacienda.onerror = function() {
+            Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF.', 'error');
         };
     }
 
