@@ -1,7 +1,9 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 1. SEGURIDAD DE SESIÓN
 if (!isset($_SESSION['usuario'])) {
@@ -31,8 +33,16 @@ $sql = "SELECT inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.marc
 
 $result = $conn->query($sql);
 $equipos = [];
+$entregaDefault = "";
 while ($row = $result->fetch_assoc()) {
     $equipos[] = $row;
+    if (empty($entregaDefault) && !empty($row['personal_asignado']) && strtoupper($row['personal_asignado']) !== 'STOCK') {
+        $entregaDefault = $row['personal_asignado'];
+    }
+}
+
+if (empty($entregaDefault)) {
+    $entregaDefault = "Nombre del Responsable - Área de Sistemas SATQ";
 }
 
 if (empty($equipos)) {
@@ -121,7 +131,7 @@ include 'header.php';
 
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">Entrega (Nombre - Puesto)</label>
-                    <input type="text" id="entrega" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" value="Nombre del Responsable - Área de Sistemas SATQ" required>
+                    <input type="text" id="entrega" class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary-dark" value="<?php echo htmlspecialchars($entregaDefault); ?>" required>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">

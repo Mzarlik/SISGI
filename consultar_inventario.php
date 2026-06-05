@@ -52,8 +52,12 @@ if (isset($_GET['ajax'])) {
 
     // Filtro específico por personal
     if (!empty($filtro_personal)) {
-        $safe_user = $conn->real_escape_string($filtro_personal);
-        $conditions[] = "inv.personal_asignado = '$safe_user'";
+        if ($filtro_personal === 'SIN_ASIGNAR') {
+            $conditions[] = "(inv.personal_asignado IS NULL OR inv.personal_asignado = '' OR inv.personal_asignado = 'STOCK' OR inv.personal_asignado = 'Sin Asignar')";
+        } else {
+            $safe_user = $conn->real_escape_string($filtro_personal);
+            $conditions[] = "inv.personal_asignado = '$safe_user'";
+        }
     }
 
     $where_clause = count($conditions) > 0 ? " WHERE " . implode(" AND ", $conditions) : "";
@@ -141,7 +145,10 @@ if (isset($_GET['ajax'])) {
         <div class="w-full lg:w-64">
             <select id="userFilter" class="w-full p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none bg-white cursor-pointer">
                 <option value="">👤 Todos los responsables</option>
-                <?php foreach($lista_personal as $nombre): ?>
+                <option value="SIN_ASIGNAR" class="font-bold text-gray-600 bg-gray-100">📦 En STOCK / Sin Asignar</option>
+                <?php foreach($lista_personal as $nombre): 
+                    if (strtoupper($nombre) === 'STOCK' || strtoupper($nombre) === 'SIN ASIGNAR') continue;
+                ?>
                     <option value="<?= htmlspecialchars($nombre) ?>"><?= htmlspecialchars($nombre) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -253,6 +260,21 @@ if (isset($_GET['ajax'])) {
                 dropdownOpciones.classList.add('hidden');
             }
         });
+
+        // Autocompletado global para Personal Asignado en la edición
+        fetch('consultar_usuarios.php?ajax_pdf=1')
+            .then(res => res.json())
+            .then(data => {
+                const datalist = document.createElement('datalist');
+                datalist.id = 'usuarios_sugeridos_inventario';
+                data.forEach(u => {
+                    if(u.nombre_completo) {
+                        datalist.appendChild(new Option(u.nombre_completo, u.nombre_completo));
+                    }
+                });
+                document.body.appendChild(datalist);
+            }).catch(e => console.log('Error cargando usuarios:', e));
+        });
     });
 
     function cargarDatos() {
@@ -354,7 +376,7 @@ if (isset($_GET['ajax'])) {
                     <input id="swal-serie" class="swal-custom-input" value="${row.num_serie}">
 
                     <label class="swal-field-label">Personal Asignado</label>
-                    <input id="swal-pers" class="swal-custom-input" value="${row.personal_asignado || ''}">
+                    <input id="swal-pers" class="swal-custom-input" list="usuarios_sugeridos_inventario" value="${row.personal_asignado || ''}">
 
                     <label class="swal-field-label">Descripción / Notas</label>
                     <textarea id="swal-desc" class="swal-custom-textarea" rows="3">${row.descripcion || ''}</textarea>

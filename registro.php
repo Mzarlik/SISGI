@@ -1,7 +1,9 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 1. SEGURIDAD: Verifica si el usuario está logueado y si su rol está permitido
 $roles_permitidos = ['admin', 'tecnico'];

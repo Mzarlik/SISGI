@@ -2,7 +2,9 @@
 // imprimir_informe.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['usuario'])) { die("Acceso denegado"); }
 
