@@ -52,6 +52,9 @@ include 'header.php';
     <script src="js/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -204,7 +207,7 @@ include 'header.php';
         // 2. CABECERA
         let y = 45; 
         doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
+        doc.setFont("Montserrat", "normal");
         
         const fechaTexto = `Quintana Roo, a ${formatearFechaLarga(document.getElementById('fecha').value)}`;
         const numOficio = `No. de Oficio: ${document.getElementById('num_oficio').value}`;
@@ -212,7 +215,7 @@ include 'header.php';
 
         doc.text(fechaTexto, pageWidth - margenDerecho, y, { align: 'right' }); y += 5;
         doc.text(numOficio, pageWidth - margenDerecho, y, { align: 'right' }); y += 5;
-        doc.setFont("helvetica", "bold");
+        doc.setFont("Montserrat", "bold");
         doc.text(asunto, pageWidth - margenDerecho, y, { align: 'right' }); y += 15;
 
         // 3. DESTINATARIO
@@ -227,7 +230,7 @@ include 'header.php';
         doc.text("P R E S E N T E .", margenIzquierdo, y); y += 15;
 
         // 4. CUERPO DEL TEXTO (JUSTIFICADO)
-        doc.setFont("helvetica", "normal");
+        doc.setFont("Montserrat", "normal");
         const areaDestino = document.getElementById('area').value;
         const textoCuerpo = `A través de la presente me dirijo a Usted, para enviarle un cordial saludo, asimismo solicito gire sus respetables instrucciones a quien corresponda, para que se lleve a cabo EL TRASPASO DE EQUIPO DE CÓMPUTO, que se encuentra bajo el resguardo del SATQ y sea asignado a la ${areaDestino}, mismos que a continuación se describen:`;
 
@@ -255,7 +258,7 @@ include 'header.php';
                 eq.num_serie
             ]),
             theme: 'grid',
-            styles: { fontSize: 8, halign: 'center' },
+            styles: { fontSize: 8, halign: 'center', font: 'Montserrat' },
             headStyles: { fillColor: [114, 21, 56] },
             didDrawPage: function (data) {
                 // Si la tabla es muy larga y crea una página nueva, volvemos a pintar el fondo
@@ -276,7 +279,7 @@ include 'header.php';
         }
         y = finalY;
 
-        doc.setFont("helvetica", "normal");
+        doc.setFont("Montserrat", "normal");
         doc.setFontSize(10);
 
         const textoDespedida = "Sin más por el momento, me despido agradeciendo su amable atención. Para cualquier duda o aclaración, por favor comunicarse a las extensiones 10017 o 10011.";
@@ -294,7 +297,7 @@ include 'header.php';
         y += (lineasDespedida.length * 5) + 15;
 
         // --- SECCIÓN DE ATENTAMENTE ---
-        doc.setFont("helvetica", "bold");
+        doc.setFont("Montserrat", "bold");
         doc.text("A t e n t a m e n t e", pageWidth / 2, y, { align: "center" }); 
 
         y += 20; // Espacio para la firma física
@@ -304,7 +307,7 @@ include 'header.php';
         
         // NOMBRES DE FIRMAS
         y += 6;
-        doc.setFont("helvetica", "normal");
+        doc.setFont("Montserrat", "normal");
         doc.setFontSize(9);
         
         // Extraemos solo el nombre (antes del guion) de los inputs

@@ -92,6 +92,9 @@ include 'header.php';
     <script src="js/jspdf.umd.min.js"></script>
     <script src="js/jspdf.plugin.autotable.min.js"></script>
     <script src="js/xlsx.full.min.js"></script>
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -346,6 +349,7 @@ function exportarTodoPDF() {
         .then(res => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('landscape');
+        doc.setFont("Montserrat", "normal");
             doc.setFontSize(16);
             doc.setTextColor(114, 21, 56);
             doc.text("Reporte de Adquisiciones de Equipos", 14, 15);
@@ -355,7 +359,7 @@ function exportarTodoPDF() {
                 row.memoria_ram || 'N/A', row.detalles || 'N/A', row.capitulos || 'N/A',
                 `$${parseFloat(row.precio).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
             ]);
-            doc.autoTable({ head: [columnas], body: filas, startY: 25, theme: 'grid', headStyles: { fillColor: [114, 21, 56] }, styles: { fontSize: 7 } });
+        doc.autoTable({ head: [columnas], body: filas, startY: 25, theme: 'grid', headStyles: { fillColor: [114, 21, 56] }, styles: { fontSize: 7, font: 'Montserrat' } });
             doc.save(`Reporte_Equipos_${new Date().getTime()}.pdf`);
             Swal.close();
         }).catch((err) => {

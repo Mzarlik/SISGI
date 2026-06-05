@@ -32,18 +32,31 @@ $inicio = ($paginaActual - 1) * $registrosPorPagina;
 $terminoBusqueda = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filtroTipo = isset($_GET['tipo']) ? $_GET['tipo'] : 'computo'; 
 
+// --- MODIFIED LOGIC ---
+// We will query the new inventory table `inventario_soporte`
 $whereClauses = [];
 
+// Exclude furniture, show only technology items
+$furniture_types = "'Silla', 'Escritorio', 'Mueble', 'Archivero', 'Silla de oficina', 'Escritorio de oficina'";
+$whereClauses[] = "tbi.nombre_tipo NOT IN ($furniture_types)";
+
 if ($filtroTipo === 'computo') {
-    $whereClauses[] = "e.tipoequipo NOT LIKE '%Impresora%'"; 
+    $whereClauses[] = "tbi.nombre_tipo NOT LIKE '%Impresora%'"; 
 } elseif ($filtroTipo === 'impresora') {
-    $whereClauses[] = "e.tipoequipo LIKE '%Impresora%'";
+    $whereClauses[] = "tbi.nombre_tipo LIKE '%Impresora%'";
 }
 
 if (!empty($terminoBusqueda)) {
     $bs = $conn->real_escape_string($terminoBusqueda);
-    // Agregamos e.registrado_por a la búsqueda por si quieren buscar por el nombre del técnico
-    $whereClauses[] = "(e.direccion LIKE '%$bs%' OR e.usuarioDominio LIKE '%$bs%' OR e.usuariosEquipo LIKE '%$bs%' OR e.numInventario LIKE '%$bs%' OR e.direccionIP LIKE '%$bs%' OR co.Correo LIKE '%$bs%' OR e.observaciones LIKE '%$bs%' OR e.registrado_por LIKE '%$bs%')";
+    // Adapted search fields for `inventario_soporte`
+    $whereClauses[] = "(inv.num_inventario LIKE '%$bs%' OR 
+                        inv.marca LIKE '%$bs%' OR 
+                        inv.modelo LIKE '%$bs%' OR 
+                        inv.num_serie LIKE '%$bs%' OR 
+                        inv.descripcion LIKE '%$bs%' OR 
+                        inv.personal_asignado LIKE '%$bs%' OR 
+                        inv.nombre_ubicacion LIKE '%$bs%' OR
+                        tbi.nombre_tipo LIKE '%$bs%')";
 }
 
 $whereSQL = "";
@@ -51,26 +64,25 @@ if (count($whereClauses) > 0) {
     $whereSQL = "WHERE " . implode(' AND ', $whereClauses);
 }
 
-// 4. CONSULTA
-$sql = "SELECT e.*, co.Correo AS nombre_cuenta_office 
-        FROM equiposbd e
-        LEFT JOIN cuentas_office co ON e.id_cuenta_office = co.id
+// 4. CONSULTA (MODIFIED)
+$sql = "SELECT inv.id, inv.num_inventario, inv.marca, inv.modelo, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.estatus, tbi.nombre_tipo as tipoequipo
+        FROM inventario_soporte inv
+        LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
         $whereSQL 
-        ORDER BY e.id DESC 
+        ORDER BY inv.id DESC 
         LIMIT $inicio, $registrosPorPagina";
 
 $result = $conn->query($sql);
 
-// Total para paginación
-$sql_total = "SELECT COUNT(*) AS total 
-              FROM equiposbd e
-              LEFT JOIN cuentas_office co ON e.id_cuenta_office = co.id
+// Total para paginación (MODIFIED)
+$sql_total = "SELECT COUNT(inv.id) AS total 
+              FROM inventario_soporte inv
+              LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
               $whereSQL";
 $result_total = $conn->query($sql_total);
 $totalRegistros = $result_total ? $result_total->fetch_assoc()['total'] : 0;
 $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -275,56 +287,48 @@ $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
                         <?php if($result->num_rows > 0): while($row = $result->fetch_assoc()): $id = $row['id']; ?>
                         <tr id="fila_<?= $id ?>" class="hover:bg-gray-50 transition duration-150 group">
                             
-                            <td data-label="Secretaría" class="p-3 celda-editable" data-campo="secretaria"><span class="editable"><?= htmlspecialchars($row['secretaria']) ?></span></td>
-                            <td data-label="Dirección" class="p-3 celda-editable" data-campo="direccion"><span class="editable"><?= htmlspecialchars($row['direccion']) ?></span></td>
-                            <td data-label="Usuario Dom" class="p-3 celda-editable font-bold text-primary-dark" data-campo="usuarioDominio"><span class="editable"><?= htmlspecialchars($row['usuarioDominio']) ?></span></td>
-                            <td data-label="Usuario Real" class="p-3 celda-editable" data-campo="usuariosEquipo"><span class="editable"><?= htmlspecialchars($row['usuariosEquipo']) ?></span></td>
+                            <td data-label="Secretaría" class="p-3"><span class="editable text-gray-400">N/A</span></td>
+                            <td data-label="Dirección" class="p-3"><span class="editable"><?= htmlspecialchars($row['nombre_ubicacion'] ?? 'N/A') ?></span></td>
+                            <td data-label="Usuario Dom" class="p-3"><span class="editable text-gray-400">N/A</span></td>
+                            <td data-label="Usuario Real" class="p-3"><span class="editable"><?= htmlspecialchars($row['personal_asignado'] ?? 'STOCK') ?></span></td>
                             
-                            <td data-label="Cuenta Office" class="p-3 celda-editable font-medium text-blue-600" 
-                                data-campo="id_cuenta_office" 
-                                data-valor-original="<?= $row['id_cuenta_office'] ?>">
-                                <span class="editable"><?= htmlspecialchars($row['nombre_cuenta_office'] ?? '-- Sin Asignar --') ?></span>
-                            </td>
+                            <td data-label="Cuenta Office" class="p-3"><span class="editable text-gray-400">N/A</span></td>
 
-                            <td data-label="Tipo" class="p-3 celda-editable" data-campo="tipoequipo"><span class="editable"><?= htmlspecialchars($row['tipoequipo']) ?></span></td>
-                            <td data-label="Modelo" class="p-3 celda-editable" data-campo="marca_modelo"><span class="editable"><?= htmlspecialchars($row['marca_modelo']) ?></span></td>
-                            <td data-label="Procesador" class="p-3 celda-editable" data-campo="procesador"><span class="editable"><?= htmlspecialchars($row['procesador']) ?></span></td>
-                            <td data-label="RAM" class="p-3 celda-editable" data-campo="ram"><span class="editable"><?= htmlspecialchars($row['ram']) ?></span></td>
-                            <td data-label="Disco" class="p-3 celda-editable" data-campo="tipodisco_capa"><span class="editable"><?= htmlspecialchars($row['tipodisco_capa']) ?></span></td>
-                            <td data-label="S.O." class="p-3 celda-editable" data-campo="sistemaOperativo"><span class="editable"><?= htmlspecialchars($row['sistemaOperativo']) ?></span></td>
-                            <td data-label="Acceso" class="p-3 celda-editable" data-campo="nivelAccesoEquipo"><span class="editable"><?= htmlspecialchars($row['nivelAccesoEquipo']) ?></span></td>
+                            <td data-label="Tipo" class="p-3"><span class="editable"><?= htmlspecialchars($row['tipoequipo'] ?? 'N/A') ?></span></td>
+                            <td data-label="Modelo" class="p-3"><span class="editable"><?= htmlspecialchars($row['marca'] . ' ' . $row['modelo']) ?></span></td>
+                            <td data-label="Procesador" class="p-3"><span class="editable text-gray-400">En Desc.</span></td>
+                            <td data-label="RAM" class="p-3"><span class="editable text-gray-400">En Desc.</span></td>
+                            <td data-label="Disco" class="p-3"><span class="editable text-gray-400">En Desc.</span></td>
+                            <td data-label="S.O." class="p-3"><span class="editable text-gray-400">En Desc.</span></td>
+                            <td data-label="Acceso" class="p-3"><span class="editable text-gray-400">N/A</span></td>
 
-                            <td data-label="Antivirus" class="p-3 celda-editable" data-campo="antivirus_eset"><span class="editable"><?= htmlspecialchars($row['antivirus_eset']) ?></span></td>
+                            <td data-label="Antivirus" class="p-3"><span class="editable text-gray-400">N/A</span></td>
                             
                             <?php 
-                                $estatus = $row['estatus_equipo'];
+                                $estatus = $row['estatus'] ?? 'N/A';
                                 $colorEstatus = 'text-gray-600';
-                                if($estatus == 'Operativo') $colorEstatus = 'text-green-600 font-bold';
-                                if($estatus == 'Dañado' || $estatus == 'Baja') $colorEstatus = 'text-red-600 font-bold';
-                                if($estatus == 'Para revisión') $colorEstatus = 'text-yellow-600 font-bold';
+                                if($estatus == 'Operativo' || $estatus == 'En Stock' || $estatus == 'Asignado') $colorEstatus = 'text-green-600 font-bold';
+                                if($estatus == 'Dañado' || $estatus == 'Para Baja') $colorEstatus = 'text-red-600 font-bold';
+                                if($estatus == 'En Mantenimiento') $colorEstatus = 'text-yellow-600 font-bold';
                             ?>
-                            <td data-label="Estatus" class="p-3 celda-editable <?= $colorEstatus ?>" data-campo="estatus_equipo"><span class="editable"><?= htmlspecialchars($estatus) ?></span></td>
+                            <td data-label="Estatus" class="p-3 <?= $colorEstatus ?>"><span class="editable"><?= htmlspecialchars($estatus) ?></span></td>
                             
-                            <td data-label="Observaciones" class="p-3 celda-editable italic text-gray-500 truncate max-w-[200px]" data-campo="observaciones" title="<?= htmlspecialchars($row['observaciones']) ?>">
-                                <span class="editable"><?= htmlspecialchars($row['observaciones']) ?></span>
+                            <td data-label="Observaciones" class="p-3 italic text-gray-500 truncate max-w-[200px]" title="<?= htmlspecialchars($row['descripcion']) ?>">
+                                <span class="editable"><?= htmlspecialchars($row['descripcion']) ?></span>
                             </td>
-                            <td data-label="Inventario" class="p-3 celda-editable font-bold text-gray-800" data-campo="numInventario"><span class="editable"><?= htmlspecialchars($row['numInventario']) ?></span></td>
+                            <td data-label="Inventario" class="p-3 font-bold text-gray-800"><span class="editable"><?= htmlspecialchars($row['num_inventario']) ?></span></td>
                             
                             <td data-label="Registrado Por" class="p-3 font-medium text-purple-700 bg-purple-50 rounded-md">
-                                <?= htmlspecialchars($row['registrado_por'] ?? 'No registrado') ?>
+                                <span class="text-gray-400">N/A</span>
                             </td>
 
-                            <td data-label="IP" class="p-3 celda-editable font-mono text-blue-600" data-campo="direccionIP"><span class="editable"><?= htmlspecialchars($row['direccionIP']) ?></span></td>
+                            <td data-label="IP" class="p-3"><span class="editable text-gray-400">N/A</span></td>
                             
                             <td data-label="Acciones" class="p-3 text-center sticky right-0 bg-white group-hover:bg-gray-50 border-l border-gray-100 shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)]">
                                 <div class="flex justify-center gap-2">
-                                    <?php if($puedeEditar): ?>
-                                        <button class="btn-edit text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded transition" onclick="habilitarEdicion(<?= $id ?>)"><i class="fas fa-pencil-alt"></i></button>
-                                        <button class="btn-save hidden text-green-600 hover:text-green-800 hover:bg-green-50 p-1.5 rounded transition" id="guardar_<?= $id ?>" onclick="guardarCambios(<?= $id ?>)"><i class="fas fa-check"></i></button>
-                                    <?php endif; ?>
-                                    <?php if($esAdmin): ?>
-                                        <button class="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition" onclick="eliminar(<?= $id ?>)"><i class="fas fa-trash-alt"></i></button>
-                                    <?php endif; ?>
+                                    <a href="consultar_inventario.php?q=<?= urlencode($row['num_inventario']) ?>" class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded transition" title="Gestionar en Inventario">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
                                 </div>
                             </td>
                         </tr>
@@ -357,147 +361,9 @@ $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
     </div>
 
     <script>
-    let listaAreas = [];
-    let listaCuentas = [];
-
-    document.addEventListener('DOMContentLoaded', () => {
-        fetch('obtener_areas.php').then(r => r.json()).then(data => { if (data.success) listaAreas = data.data; });
-        fetch('obtener_cuentas_office.php').then(r => r.json()).then(data => { if (data.success) listaCuentas = data.data; });
-    });
-
-    function habilitarEdicion(id) {
-        const fila = document.getElementById('fila_' + id);
-        fila.querySelector('.btn-edit').classList.add('hidden');
-        fila.querySelector('.btn-save').classList.remove('hidden');
-
-        const celdaSec = fila.querySelector('[data-campo="secretaria"]');
-        const celdaDir = fila.querySelector('[data-campo="direccion"]');
-        const valorSecActual = celdaSec.innerText.trim();
-        const valorDirActual = celdaDir.innerText.trim();
-
-        fila.querySelectorAll('.celda-editable').forEach(td => {
-            const campo = td.dataset.campo;
-            const valorTexto = td.innerText.trim();
-            const valorID = td.dataset.valorOriginal || valorTexto; 
-
-            let inputHtml = '';
-
-            // --- LÓGICA DE INPUTS ---
-            if (campo === 'secretaria') {
-                inputHtml = generarSelectSecretarias(valorTexto, id);
-            } else if (campo === 'direccion') {
-                inputHtml = `<select class="input-table" name="direccion" id="select_dir_${id}"></select>`;
-            } else if (campo === 'id_cuenta_office') {
-                inputHtml = generarSelectOffice(valorID);
-            } else if (campo === 'tipoequipo') {
-                inputHtml = generarSelectEstatico('tipoequipo', valorTexto, ['PC', 'Laptop', 'AiO', 'Servidor', 'Impresora']);
-            } else if (campo === 'nivelAccesoEquipo') {
-                inputHtml = generarSelectEstatico('nivelAccesoEquipo', valorTexto, ['Usuario', 'Administrador']);
-            } 
-            else if (campo === 'antivirus_eset') {
-                inputHtml = generarSelectEstatico('antivirus_eset', valorTexto, ['No', 'Si', 'N/A']);
-            } else if (campo === 'estatus_equipo') {
-                inputHtml = generarSelectEstatico('estatus_equipo', valorTexto, ['Operativo', 'Para Revisión', 'Dañado', 'Baja']);
-            } else if (campo === 'observaciones') {
-                inputHtml = `<input type="text" class="input-table" name="${campo}" value="${valorTexto}" placeholder="...">`;
-            }
-            else {
-                inputHtml = `<input type="text" class="input-table" name="${campo}" value="${valorTexto}">`;
-            }
-
-            td.innerHTML = inputHtml;
-        });
-
-        actualizarSelectDireccion(id, valorSecActual, valorDirActual);
-    }
-
-    function generarSelectOffice(idActual) {
-        let options = `<option value="">-- Sin Asignar --</option>`;
-        listaCuentas.forEach(c => {
-            const selected = (c.id == idActual) ? 'selected' : '';
-            options += `<option value="${c.id}" ${selected}>${c.Correo} [${c.Conectados || 0}]</option>`;
-        });
-        return `<select class="input-table" name="id_cuenta_office">${options}</select>`;
-    }
-
-    function generarSelectSecretarias(valorActual, rowId) {
-        let options = `<option value="">-- Seleccionar --</option>`;
-        listaAreas.forEach(area => {
-            const selected = (area.nombre_secretaria === valorActual) ? 'selected' : '';
-            options += `<option value="${area.nombre_secretaria}" ${selected}>${area.nombre_secretaria}</option>`;
-        });
-        return `<select class="input-table" name="secretaria" onchange="cambioSecretaria(${rowId}, this.value)">${options}</select>`;
-    }
-
-    function generarSelectEstatico(name, valorActual, opciones) {
-        let options = '';
-        opciones.forEach(op => {
-            const selected = (op === valorActual) ? 'selected' : '';
-            options += `<option value="${op}" ${selected}>${op}</option>`;
-        });
-        return `<select class="input-table" name="${name}">${options}</select>`;
-    }
-
-    function cambioSecretaria(id, nuevaSecretaria) {
-        actualizarSelectDireccion(id, nuevaSecretaria, '');
-    }
-
-    function actualizarSelectDireccion(id, nombreSecretaria, valorPreseleccionado) {
-        const selectDir = document.getElementById(`select_dir_${id}`);
-        if (!selectDir) return;
-        selectDir.innerHTML = '<option value="">-- Seleccionar --</option>';
-
-        const areaData = listaAreas.find(a => a.nombre_secretaria === nombreSecretaria);
-
-        if (areaData && areaData.direcciones) {
-            areaData.direcciones.forEach(dir => {
-                const selected = (dir.nombre_direcciones === valorPreseleccionado) ? 'selected' : '';
-                const option = document.createElement('option');
-                option.value = dir.nombre_direcciones;
-                option.textContent = dir.nombre_direcciones;
-                if (selected) option.selected = true;
-                selectDir.appendChild(option);
-            });
-        }
-    }
-
-    function guardarCambios(id) {
-        const fila = document.getElementById('fila_' + id);
-        const datos = new FormData();
-        datos.append('id', id);
-
-        fila.querySelectorAll('.input-table').forEach(input => {
-            datos.append(input.name, input.value);
-        });
-
-        fetch('guardar_equipo.php', { method: 'POST', body: datos })
-        .then(r => r.json())
-        .then(d => {
-            if(d.success) {
-                Swal.fire({icon:'success', title:'Actualizado', toast:true, position:'top-end', showConfirmButton:false, timer:1500});
-                setTimeout(() => location.reload(), 500);
-            } else {
-                Swal.fire('Error', d.message, 'error');
-            }
-        })
-        .catch(err => Swal.fire('Error', 'No se pudo guardar.', 'error'));
-    }
-
-    function eliminar(id) {
-        Swal.fire({
-            title: '¿Eliminar equipo?', text: "Esta acción es irreversible.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData(); fd.append('id', id);
-                fetch('eliminar_equipo.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(d => {
-                    if(d.success) Swal.fire('Eliminado', '', 'success').then(() => location.reload());
-                    else Swal.fire('Error', d.message, 'error');
-                });
-            }
-        });
-    }
+    // The inline editing functionality has been removed because this page now
+    // displays data from the `inventario_soporte` table.
+    // All management for this inventory should be done from `consultar_inventario.php`.
     </script>
 </body>
 </html>

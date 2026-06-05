@@ -153,6 +153,9 @@ include 'header.php';
     <script src="js/sweetalert2.all.min.js"></script>   
     <script src="js/jspdf.umd.min.js"></script>
     <script src="js/jspdf.plugin.autotable.min.js"></script>
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     
     <style>
         :root {
@@ -247,18 +250,18 @@ include 'header.php';
                         $nombreCompleto = trim(preg_replace('/\s+/', ' ', $row['nombres'] . ' ' . $row['apellido_paterno'] . ' ' . $row['apellido_materno']));
                         $passVal = $row['contrasena'] ?? $row['password'] ?? '';
                     ?>
-                    <tr id="fila_<?php echo $row['id']; ?>">
-                        <td style="color:#9ca3af; font-size:0.8em; padding-top:20px;"><?php echo $row['id']; ?></td>
+                    <tr id="fila_<?php echo $row['id']; ?>" class="table-row-hover transition-colors duration-150">
+                        <td data-label="ID" class="px-6 py-4 text-gray-400 font-mono text-xs">#<?php echo $row['id']; ?></td>
 
-                        <td>
-                            <div class="view-mode col-nombre">
-                                <?php echo htmlspecialchars($nombreCompleto); ?>
-                                <div style="font-size:0.75em; color:#6b7280; margin-top:2px;">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></div>
-                                <div style="font-size:0.75em; color:#9ca3af; margin-top:2px;">Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></div>
+                        <td data-label="Personal" class="px-6 py-4">
+                            <div class="view-mode">
+                                <span class="font-bold text-gray-800 block"><?php echo htmlspecialchars($nombreCompleto); ?></span>
+                                <span class="text-xs text-gray-500 block mt-0.5">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></span>
+                                <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></span>
                             </div>
                             <div class="edit-mode hidden">
                                 <input type="text" class="edit-input" id="edit_nom_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['nombres']); ?>" placeholder="Nombres">
-                                <div style="display:flex; gap:5px;">
+                                <div class="flex gap-2">
                                     <input type="text" class="edit-input" id="edit_pat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_paterno']); ?>" placeholder="A. Pat">
                                     <input type="text" class="edit-input" id="edit_mat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_materno']); ?>" placeholder="A. Mat">
                                 </div>
@@ -266,20 +269,20 @@ include 'header.php';
                             </div>
                         </td>
 
-                        <td>
+                        <td data-label="Ubicación" class="px-6 py-4">
                             <div class="view-mode">
-                                <span class="col-sec"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
-                                <span class="col-dir"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
+                                <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
+                                <span class="text-sm font-medium text-primary-dark"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
                             </div>
                             <div class="edit-mode hidden">
-                                <select class="edit-input" id="edit_dir_<?php echo $row['id']; ?>"></select>
+                                <select class="edit-input bg-white" id="edit_dir_<?php echo $row['id']; ?>"></select>
                             </div>
                         </td>
 
-                        <td>
+                        <td data-label="Contacto" class="px-6 py-4">
                             <div class="view-mode">
-                                <div style="font-size:0.85em; color:#374151;"><i class="fas fa-envelope text-gray-400"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
-                                <div style="font-size:0.85em; color:#374151; margin-top:4px;"><i class="fas fa-phone text-gray-400"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
+                                <div class="text-sm text-gray-700 mb-1"><i class="far fa-envelope text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
+                                <div class="text-sm text-gray-700"><i class="fas fa-phone-alt text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
                             </div>
                             <div class="edit-mode hidden">
                                 <input type="text" class="edit-input" id="edit_correo_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['correo_electronico'] ?? ''); ?>" placeholder="Correo">
@@ -287,14 +290,19 @@ include 'header.php';
                             </div>
                         </td>
 
-                        <td>
+                        <td data-label="Cuenta" class="px-6 py-4">
                             <div class="view-mode">
-                                <span class="col-user" style="display:block; margin-bottom:4px; width: fit-content;"><i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($row['usuario']); ?></span>
-                                <div style="font-size:0.75em; color:#6b7280; font-weight: 500;">Oficio: <?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></div>
-                                <div style="display:flex; align-items:center; gap:5px; color:#6b7280; font-size:0.9em; margin-top:4px;">
-                                    <i class="fas fa-key" style="font-size:0.8em;"></i>
-                                    <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly style="border:none; background:transparent; width:80px; font-family:monospace; color:#374151;">
-                                    <i class="fas fa-eye" onclick="togglePassword(<?php echo $row['id']; ?>)" style="cursor:pointer; color:var(--brand-color);" title="Ver"></i>
+                                <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md font-mono text-sm font-bold border border-indigo-100 inline-block mb-2 shadow-sm">
+                                    <i class="fas fa-user-circle mr-1"></i> <?php echo htmlspecialchars($row['usuario']); ?>
+                                </span>
+                                <div class="text-xs text-gray-500 font-medium mb-1">Oficio: <span class="text-gray-700"><?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></span></div>
+                                
+                                <div class="flex items-center gap-2 text-gray-500 mt-1">
+                                    <i class="fas fa-key text-xs"></i>
+                                    <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly class="bg-transparent border-none w-20 outline-none text-xs font-mono tracking-widest text-gray-700">
+                                    <button onclick="togglePassword(<?php echo $row['id']; ?>)" class="text-gray-400 hover:text-primary-dark transition focus:outline-none p-1">
+                                        <i class="fas fa-eye" id="icon_pass_<?php echo $row['id']; ?>"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="edit-mode hidden">
@@ -304,13 +312,19 @@ include 'header.php';
                             </div>
                         </td>
 
-                        <td style="text-align:center;">
-                            <div class="view-mode">
-                                <button class="action-btn btn-edit" onclick="activarEdicion(<?php echo $row['id']; ?>, <?php echo $row['id_direccion'] ?? 0; ?>)"><i class="fas fa-pencil-alt"></i></button>
+                        <td data-label="Acciones" class="px-6 py-4 text-center whitespace-nowrap">
+                            <div class="view-mode flex justify-center">
+                                <button class="btn-action-sm bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white" onclick="activarEdicion(<?php echo $row['id']; ?>, <?php echo $row['id_direccion'] ?? 0; ?>)" title="Editar Información">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
                             </div>
-                            <div class="edit-mode hidden">
-                                <button class="action-btn btn-save" onclick="guardarEdicion(<?php echo $row['id']; ?>)"><i class="fas fa-check"></i></button>
-                                <button class="action-btn btn-cancel" onclick="cancelarEdicion(<?php echo $row['id']; ?>)"><i class="fas fa-times"></i></button>
+                            <div class="edit-mode hidden flex justify-center sm:justify-center justify-end gap-2">
+                                <button class="btn-action-sm bg-green-100 text-green-700 hover:bg-green-600 hover:text-white" onclick="guardarEdicion(<?php echo $row['id']; ?>)" title="Guardar">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn-action-sm bg-red-100 text-red-600 hover:bg-red-500 hover:text-white" onclick="cancelarEdicion(<?php echo $row['id']; ?>)" title="Cancelar">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -318,12 +332,29 @@ include 'header.php';
                 </tbody>
             </table>
         </div>
-    </div>
-    
-    <div class="pagination">
-        <?php for($i=1; $i<=$paginas; $i++): ?>
-            <a href="?p=<?php echo $i; ?>&q=<?php echo $busqueda; ?>" class="page-link <?php echo ($i==$pagina) ? 'active' : 'inactive'; ?>"><?php echo $i; ?></a>
-        <?php endfor; ?>
+        
+        <?php if($paginas > 1): ?>
+        <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-center flex-wrap gap-2">
+            <?php 
+            $rango = 2;
+            $inicio = max(1, $pagina - $rango);
+            $fin = min($paginas, $pagina + $rango);
+            
+            if ($pagina > 1) {
+                echo '<a href="?p='.($pagina-1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"><i class="fas fa-chevron-left text-xs"></i></a>';
+            }
+
+            for($i = $inicio; $i <= $fin; $i++) {
+                $activeClass = ($i == $pagina) ? 'bg-primary-dark text-white border-primary-dark shadow-md' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
+                echo '<a href="?p='.$i.'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium '.$activeClass.'">'.$i.'</a>';
+            }
+
+            if ($pagina < $paginas) {
+                echo '<a href="?p='.($pagina+1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"><i class="fas fa-chevron-right text-xs"></i></a>';
+            }
+            ?>
+        </div>
+        <?php endif; ?>
     </div>
 
 <script>
@@ -378,6 +409,7 @@ include 'header.php';
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
+            doc.setFont("Montserrat", "normal");
 
             doc.setFontSize(18);
             doc.setTextColor(114, 21, 56); 
@@ -402,7 +434,7 @@ include 'header.php';
                 head: [columnas],
                 body: filas,
                 startY: 35,
-                styles: { fontSize: 8 },
+                styles: { font: 'Montserrat', fontSize: 8 },
                 headStyles: { fillColor: [114, 21, 56] }, 
                 alternateRowStyles: { fillColor: [245, 245, 245] }
             });
@@ -418,14 +450,23 @@ include 'header.php';
     // --- FUNCIONES DE EDICIÓN EN LÍNEA ---
     function togglePassword(id) {
         const input = document.getElementById(`ver_pass_${id}`);
-        input.type = (input.type === "password") ? "text" : "password";
+        const icon = document.getElementById(`icon_pass_${id}`);
+        
+        if(input.type === "password") {
+            input.type = "text";
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = "password";
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
     }
 
     function activarEdicion(id, idDireccionActual) {
         const fila = document.getElementById(`fila_${id}`);
         fila.querySelectorAll('.view-mode').forEach(el => el.classList.add('hidden'));
         fila.querySelectorAll('.edit-mode').forEach(el => el.classList.remove('hidden'));
-        fila.style.backgroundColor = '#fff1f2'; 
         
         const select = document.getElementById(`edit_dir_${id}`);
         select.innerHTML = ''; 

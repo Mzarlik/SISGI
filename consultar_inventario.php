@@ -100,6 +100,9 @@ if (isset($_GET['ajax'])) {
     <script src="js/sweetalert2.all.min.js"></script>
     <script src="js/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <script>
         const listaTiposGlobal = <?php echo json_encode($tipos_opciones); ?>;
         tailwind.config = {
@@ -592,7 +595,7 @@ if (isset($_GET['ajax'])) {
         // Función para limpiar acentos y evitar los '?' en el PDF
         const limpiarTexto = (texto) => {
             if (!texto) return '';
-            return texto.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ñ/g, "n").replace(/Ñ/g, "N");
+            return texto.toString();
         };
 
         const { jsPDF } = window.jspdf;
@@ -616,7 +619,7 @@ if (isset($_GET['ajax'])) {
             startY += 55;
 
             doc.setFontSize(13);
-            doc.setFont("helvetica", "bold");
+            doc.setFont("Montserrat", "bold");
             doc.text("Anexo de resguardo de Bienes Muebles", pageWidth / 2, startY, { align: "center" });
             startY += 30;
 
@@ -637,12 +640,12 @@ if (isset($_GET['ajax'])) {
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
                 columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
             });
             startY = doc.lastAutoTable.finalY + 20;
 
-            doc.setFont("helvetica", "bold");
+            doc.setFont("Montserrat", "bold");
             doc.text("II.   DATOS DEL TRABAJADOR", marginLeft, startY);
             startY += 10;
 
@@ -659,12 +662,12 @@ if (isset($_GET['ajax'])) {
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
                 columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
             });
             startY = doc.lastAutoTable.finalY + 20;
 
-            doc.setFont("helvetica", "bold");
+            doc.setFont("Montserrat", "bold");
             doc.text("III.  DETALLE DE BIENES EN RESGUARDO", marginLeft, startY);
             startY += 10;
 
@@ -687,24 +690,24 @@ if (isset($_GET['ajax'])) {
                 body: tablaBienes,
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { fontSize: 8, cellPadding: 3, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
+                styles: { font: 'Montserrat', fontSize: 8, cellPadding: 3, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
                 columnStyles: { 0: { cellWidth: 20, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 50 }, 6: { cellWidth: 40 } }
             });
             startY = doc.lastAutoTable.finalY + 20;
 
-            doc.setFont("helvetica", "bold");
+            doc.setFont("Montserrat", "bold");
             doc.setFontSize(10);
-            doc.text("IV. DECLARACION DE RESPONSABILIDAD", marginLeft, startY);
+            doc.text("IV. DECLARACIÓN DE RESPONSABILIDAD", marginLeft, startY);
             startY += 15;
             
             doc.setFontSize(9);
-            const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, asi como a devolverlos en buen estado cuando le sea requerido.";
+            const declaracion = "El trabajador antes mencionado declara bajo protesta de decir verdad que recibe en resguardo personal los bienes descritos en el presente formato y se compromete a hacer uso adecuado de ellos, así como a devolverlos en buen estado cuando le sea requerido.";
             const splitText = doc.splitTextToSize(declaracion, doc.internal.pageSize.getWidth() - (marginLeft * 2));
             doc.text(splitText, marginLeft, startY);
             
             startY += (splitText.length * 12) + 20;
 
-            doc.setFont("helvetica", "bold");
+            doc.setFont("Montserrat", "bold");
             doc.setFontSize(10);
             doc.text("V. FIRMAS", marginLeft, startY);
             startY += 10;
@@ -718,14 +721,14 @@ if (isset($_GET['ajax'])) {
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
             });
 
             // Logo Hacienda con proporción alargada para que no se vea comprimido
             doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
 
             doc.setFontSize(8);
-            doc.setFont("helvetica", "normal");
+            doc.setFont("Montserrat", "normal");
             doc.setTextColor(100);
             const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
             // Movemos el texto a la izquierda para balancear el pie de página y evitar que se encime
@@ -744,7 +747,7 @@ if (isset($_GET['ajax'])) {
 
         const limpiarTexto = (texto) => {
             if (!texto) return '';
-            return texto.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ñ/g, "n").replace(/Ñ/g, "N");
+            return texto.toString();
         };
         
         Swal.fire({ title: 'Generando PDF...', text: 'Preparando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -754,6 +757,7 @@ if (isset($_GET['ajax'])) {
             .then(res => {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF('landscape');
+            doc.setFont("Montserrat", "normal");
                 doc.setFontSize(16);
                 doc.setTextColor(114, 21, 56);
                 doc.text("Reporte de Inventario - Soporte Técnico", 14, 15);
@@ -782,7 +786,7 @@ if (isset($_GET['ajax'])) {
                     startY: personalActual ? 26 : 25,
                     theme: 'grid',
                     headStyles: { fillColor: [114, 21, 56] },
-                    styles: { fontSize: 8 }
+                styles: { fontSize: 8, font: 'Montserrat' }
                 });
 
                 doc.save(`Inventario_${new Date().toISOString().slice(0,10)}.pdf`);

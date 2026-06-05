@@ -140,6 +140,9 @@ include 'header.php';
     <script src="js/tailwindcss.js"></script>
     <script src="js/sweetalert2.all.min.js"></script>
     <script src="js/jspdf.umd.min.js"></script>
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -656,8 +659,9 @@ include 'header.php';
             
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
+            doc.setFont("Montserrat", "normal");
             doc.text("Reporte Licencias", 14, 20);
-            doc.autoTable({ startY: 25, head: [['Secretaría', 'Ubicación', 'Correo', 'Uso']], body: json.data.map(row => [row.Secretaria || '', row.Dirección + " " + row.Area, row.Correo, row.Conectados]) });
+            doc.autoTable({ startY: 25, styles: { font: 'Montserrat' }, head: [['Secretaría', 'Ubicación', 'Correo', 'Uso']], body: json.data.map(row => [row.Secretaria || '', row.Dirección + " " + row.Area, row.Correo, row.Conectados]) });
             doc.save("Reporte.pdf");
             Swal.close();
         } catch (e) { Swal.fire('Error PDF', '', 'error'); }

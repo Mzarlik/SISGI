@@ -18,7 +18,7 @@ $puedeVerTodo = ($esAdmin || $esTecnico);
 $conn = get_db_connection();
 
 // Inicializar variables
-$total_licencias = 0;
+$total_inventario = 0;
 $total_ad = 0;
 $total_equipos = 0;
 $total_mater = 0;
@@ -51,9 +51,9 @@ if ($conn) {
 
     // --- CONSULTAS ---
 
-    // A. Licencias (Suma de conectados)
-    $res = $conn->query("SELECT SUM(Conectados) as total FROM cuentas_office");
-    if ($res) $total_licencias = $res->fetch_assoc()['total'] ?? 0;
+    // A. Inventario General (DNTICS)
+    $res = $conn->query("SELECT COUNT(*) as total FROM inventario_soporte");
+    if ($res) $total_inventario = $res->fetch_assoc()['total'] ?? 0;
 
     // B. Obtener Lista de Anuncios (Últimos 10)
     $res_anuncios = $conn->query("SELECT * FROM anuncios ORDER BY fecha DESC LIMIT 10");
@@ -69,8 +69,9 @@ if ($conn) {
         $res = $conn->query("SELECT COUNT(*) as total FROM registros_ad");
         if ($res) $total_ad = $res->fetch_assoc()['total'] ?? 0;
 
-        // Equipos
-        $res = $conn->query("SELECT COUNT(*) as total FROM equiposbd");
+        // Equipos (Solo Tecnología, sin muebles)
+        $furniture_types = "'Silla', 'Escritorio', 'Mueble', 'Archivero', 'Silla de oficina', 'Escritorio de oficina'";
+        $res = $conn->query("SELECT COUNT(inv.id) as total FROM inventario_soporte inv LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo WHERE tbi.nombre_tipo NOT IN ($furniture_types)");
         if ($res) $total_equipos = $res->fetch_assoc()['total'] ?? 0;
 
         // Stock Material
@@ -187,8 +188,8 @@ if ($conn) {
                         <a href="registro.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
                             <i class="fas fa-plus text-xs"></i> Usuario AD
                         </a>
-                        <a href="registro_equipos.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
-                            <i class="fas fa-plus text-xs"></i> Equipo
+                        <a href="registrar_inventario.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
+                            <i class="fas fa-plus text-xs"></i> Equipo (Inventario)
                         </a>
                     <?php endif; ?>
 
@@ -269,23 +270,24 @@ if ($conn) {
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
                     
-                    <a href="consultar_licencias.php" class="block group">
-                        <div id="card-licencias" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 relative border-l-4">
+                    <a href="consultar_inventario.php" class="block group">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 relative border-l-4 border-l-blue-500">
                             <div class="flex justify-between items-start mb-3">
                                 <div>
-                                    <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Licencias</p>
-                                    <h3 class="text-base font-bold text-gray-800">Apps 365</h3>
+                                    <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">General</p>
+                                    <h3 class="text-base font-bold text-gray-800">Inventario DNTICS</h3>
                                 </div>
-                                <div id="icon-licencias" class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
-                                    <i class="fab fa-windows text-lg"></i>
+                                <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
+                                    <i class="fas fa-boxes text-lg"></i>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 mt-2">
-                                <span class="text-3xl font-bold text-gray-800 counter" data-target="<?= $total_licencias ?>">0</span>
-                                <span class="text-xs text-gray-400 font-medium">activas</span>
+                                <span class="text-3xl font-bold text-gray-800 counter" data-target="<?= $total_inventario ?>">0</span>
+                                <span class="text-xs text-gray-400 font-medium">bienes</span>
                             </div>
-                            <div class="mt-3 pt-3 border-t border-gray-50">
-                                <span id="status-licencias" class="text-[10px] uppercase font-bold px-2 py-1 rounded bg-gray-100 text-gray-400">Calculando...</span>
+                            <div class="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center text-xs">
+                                <span class="text-blue-600 font-medium">Gestionar</span>
+                                <i class="fas fa-arrow-right text-blue-200"></i>
                             </div>
                         </div>
                     </a>
@@ -493,32 +495,6 @@ if ($conn) {
         // Notificaciones (Pooling cada 30s)
         verificarNotificaciones();
         setInterval(verificarNotificaciones, 30000);
-
-        // Licencias (Semaforo)
-        const hoy = new Date();
-        const year = hoy.getFullYear();
-        const fechaLimite = new Date(year, 7, 1); 
-        const diasRestantes = Math.ceil((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
-        const card = document.getElementById('card-licencias');
-        const badge = document.getElementById('status-licencias');
-        const iconBox = document.getElementById('icon-licencias');
-        
-        if (card && badge) {
-            if (diasRestantes < 0) {
-                card.classList.add('border-l-red-500');
-                badge.className = 'text-[10px] uppercase font-bold px-2 py-1 rounded bg-red-100 text-red-700';
-                badge.innerText = 'Vencidas';
-                iconBox.className = 'w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center transition';
-            } else if (diasRestantes <= 60) {
-                card.classList.add('border-l-yellow-500');
-                badge.className = 'text-[10px] uppercase font-bold px-2 py-1 rounded bg-yellow-100 text-yellow-800';
-                badge.innerText = `Renovar (${diasRestantes}d)`;
-            } else {
-                card.classList.add('border-l-green-500');
-                badge.className = 'text-[10px] uppercase font-bold px-2 py-1 rounded bg-green-100 text-green-700';
-                badge.innerText = 'Vigente';
-            }
-        }
 
         // Contadores Animados
         const counters = document.querySelectorAll('.counter');
