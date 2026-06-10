@@ -68,6 +68,7 @@ if (isset($_GET['ajax_pdf'])) {
 
     $sql = "SELECT r.num_oficio, 
                    TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_completo,
+                   TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) as nombre_natural,
                    r.usuario, r.cargo, r.correo_electronico, r.telefono,
                    d.nombre_direccion, 
                    s.nombres as nombre_secretaria 
@@ -146,7 +147,7 @@ include 'header.php';
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Usuarios AD</title>
+    <title>Usuarios SATQ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -173,13 +174,9 @@ include 'header.php';
         .search-input:focus { border-color: var(--brand-color); box-shadow: 0 0 0 3px rgba(114, 21, 56, 0.1); }
         .search-icon-svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #9ca3af; z-index: 10; }
         
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow: hidden; }
-        .table-responsive { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        thead { background-color: var(--brand-color); color: white; }
-        th { padding: 16px; text-align: left; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
         td { padding: 16px; border-bottom: 1px solid #e5e7eb; font-size: 0.95em; vertical-align: top; }
-        tr:hover { background-color: #fdf2f5; }
+        tbody tr:hover { background-color: #fdf2f5; }
 
         .hidden { display: none !important; }
         .col-nombre { font-weight: 600; color: #111827; }
@@ -201,7 +198,7 @@ include 'header.php';
         
         <div class="flex flex-col sm:flex-row justify-between items-center mb-2">
             <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
-                <i class="fas fa-users-cog"></i> Usuarios AD
+                <i class="fas fa-users-cog"></i> Usuarios SATQ
                 <span class="text-xs bg-white/60 text-primary-dark/80 px-3 py-1 rounded-full italic font-semibold"><?php echo $total; ?> registrados</span>
             </h2>
         </div>
@@ -236,20 +233,20 @@ include 'header.php';
             </div>
         </div>
 
-    <div class="card">
-        <div class="table-responsive">
-            <table>
-                <thead>
+    <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 relative z-0">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-primary-dark text-white text-xs font-bold uppercase tracking-wider">
                     <tr>
-                        <th width="5%">ID</th>
-                        <th width="25%">Nombre y Cargo</th>
-                        <th width="25%">Ubicación</th>
-                        <th width="20%">Contacto</th>
-                        <th width="15%">Cuenta / Oficio</th>
-                        <th width="10%" style="text-align:center;">Acciones</th>
+                        <th width="5%" class="px-6 py-4">ID</th>
+                        <th width="25%" class="px-6 py-4">Nombre y Cargo</th>
+                        <th width="25%" class="px-6 py-4">Ubicación</th>
+                        <th width="20%" class="px-6 py-4">Contacto</th>
+                        <th width="15%" class="px-6 py-4">Cuenta / Oficio</th>
+                        <th width="10%" class="px-6 py-4 text-center">Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="divide-y divide-gray-100 text-sm text-gray-700 bg-white">
                 <?php if(!$res || $res->num_rows == 0): ?>
                         <tr><td colspan="6" style="text-align:center; padding: 40px; color:#9ca3af;">No se encontraron resultados</td></tr>
                     <?php endif; ?>
@@ -302,24 +299,25 @@ include 'header.php';
                 </tbody>
             </table>
         </div>
+        
         <?php if($paginas > 1): ?>
-        <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-center flex-wrap gap-2">
+        <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-center flex-wrap gap-2">
             <?php 
             $rango = 2;
             $inicio = max(1, $pagina - $rango);
             $fin = min($paginas, $pagina + $rango);
             
             if ($pagina > 1) {
-                echo '<a href="?p='.($pagina-1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"><i class="fas fa-chevron-left text-xs"></i></a>';
+                echo '<a href="?p='.($pagina-1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-primary-dark transition-all"><i class="fas fa-chevron-left text-xs"></i></a>';
             }
 
             for($i = $inicio; $i <= $fin; $i++) {
-                $activeClass = ($i == $pagina) ? 'bg-[#721538] text-white shadow-md border-primary-dark' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
+                $activeClass = ($i == $pagina) ? 'bg-primary-dark text-white shadow-md border-primary-dark scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:text-primary-dark';
                 echo '<a href="?p='.$i.'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium '.$activeClass.'">'.$i.'</a>';
             }
 
             if ($pagina < $paginas) {
-                echo '<a href="?p='.($pagina+1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"><i class="fas fa-chevron-right text-xs"></i></a>';
+                echo '<a href="?p='.($pagina+1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-primary-dark transition-all"><i class="fas fa-chevron-right text-xs"></i></a>';
             }
             ?>
         </div>
@@ -382,7 +380,7 @@ include 'header.php';
 
             doc.setFontSize(18);
             doc.setTextColor(114, 21, 56); 
-            doc.text("Reporte de Usuarios AD", 14, 20);
+            doc.text("Reporte de Usuarios SATQ", 14, 20);
             
             doc.setFontSize(10);
             doc.setTextColor(100);
@@ -408,7 +406,7 @@ include 'header.php';
                 alternateRowStyles: { fillColor: [245, 245, 245] }
             });
 
-            doc.save(`Reporte_Usuarios_AD_${new Date().getTime()}.pdf`);
+            doc.save(`Reporte_Usuarios_SATQ_${new Date().getTime()}.pdf`);
             Swal.close();
         } catch (error) {
             console.error(error);
@@ -440,7 +438,7 @@ include 'header.php';
             }
 
             const rows = [
-                ["REPORTE DE USUARIOS AD"],
+                ["REPORTE DE USUARIOS SATQ"],
                 [busqueda ? `Filtro aplicado: "${busqueda}"` : "Todos los usuarios"],
                 [`Fecha de Generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
                 [],
@@ -476,8 +474,8 @@ include 'header.php';
                 { wch: 15 }  // Teléfono
             ];
 
-            XLSX.utils.book_append_sheet(wb, ws, "Usuarios AD");
-            XLSX.writeFile(wb, `Reporte_Usuarios_AD_${new Date().getTime()}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, "Usuarios SATQ");
+            XLSX.writeFile(wb, `Reporte_Usuarios_SATQ_${new Date().getTime()}.xlsx`);
             Swal.close();
         } catch (error) {
             console.error(error);

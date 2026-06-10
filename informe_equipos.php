@@ -16,38 +16,122 @@ if (!isset($_SESSION['usuario'])) {
 $conn = get_db_connection();
 if (!$conn) { die("Conexión fallida."); }
 
+// --- AUXILIAR: PARSEAR HARDWARE ---
+function analizarDescripcionHardware($descripcion, $marca = '', $modelo = '') {
+    $desc = mb_strtoupper($descripcion);
+    $full = $desc . " | " . mb_strtoupper($marca) . " | " . mb_strtoupper($modelo);
+    
+    // 1. Procesador
+    $procesador = "Intel Core i5"; // Default razonable
+    if (stripos($full, 'Celeron') !== false) {
+        $procesador = "Intel Celeron";
+    } elseif (stripos($full, 'Pentium') !== false) {
+        $procesador = "Intel Pentium";
+    } elseif (stripos($full, 'Atom') !== false) {
+        $procesador = "Intel Atom";
+    } elseif (stripos($full, 'Dual Core') !== false || stripos($full, 'Core 2') !== false || stripos($full, 'Core2') !== false) {
+        $procesador = "Intel Dual Core";
+    } elseif (stripos($full, 'i3') !== false) {
+        $procesador = "Intel Core i3";
+    } elseif (stripos($full, 'i7') !== false) {
+        $procesador = "Intel Core i7";
+    } elseif (stripos($full, 'Ryzen') !== false) {
+        $procesador = "AMD Ryzen";
+    }
+    
+    // 2. RAM
+    $ram = "8 GB"; // Default
+    if (preg_match('/(\d+)\s*(GB|MB|GM|G)/i', $desc, $matches)) {
+        $val = intval($matches[1]);
+        $unit = strtoupper($matches[2]);
+        if ($val > 0) {
+            if ($unit === 'MB') {
+                $ram = $val . " MB";
+            } else {
+                $ram = $val . " GB";
+            }
+        }
+    }
+    
+    // 3. Disco
+    $disco = "HDD 500GB"; // Default
+    if (stripos($full, 'SSD') !== false || stripos($full, 'M.2') !== false || stripos($full, 'SOLIDO') !== false || stripos($full, 'SÓLIDO') !== false) {
+        $disco = "SSD 240GB";
+    } elseif (preg_match('/(\d+)\s*(GB|TB)\s*(DISCO|HDD|MECANICO)/i', $desc, $matches)) {
+        $disco = "HDD " . $matches[1] . $matches[2];
+    }
+    
+    // 4. Sistema Operativo
+    $so = "Windows 10 Pro"; // Default
+    if (stripos($full, 'Windows 11') !== false || stripos($full, 'Win 11') !== false || stripos($full, 'Win11') !== false) {
+        $so = "Windows 11 Pro";
+    } elseif (stripos($full, 'Windows 7') !== false || stripos($full, 'Win 7') !== false || stripos($full, 'Win7') !== false || stripos($full, 'WUINDOS 7') !== false) {
+        $so = "Windows 7 Pro";
+    } elseif (stripos($full, 'Windows CE') !== false) {
+        $so = "Windows CE";
+    }
+    
+    return [
+        'procesador' => $procesador,
+        'ram' => $ram,
+        'tipodisco_capa' => $disco,
+        'sistemaOperativo' => $so
+    ];
+}
+
 // --- FILTROS POR SECRETARÍA Y DIRECCIÓN ---
 $filtroSecretaria = isset($_GET['secretaria']) ? $_GET['secretaria'] : '';
 $filtroDireccion = isset($_GET['direccion']) ? $_GET['direccion'] : '';
 
-$whereSQL = "WHERE tipoequipo NOT LIKE '%Impresora%'";
+$whereClauses = [];
+$furniture_types = "'Silla', 'Escritorio', 'Mueble', 'Archivero', 'Silla de oficina', 'Escritorio de oficina'";
+$whereClauses[] = "tbi.nombre_tipo NOT IN ($furniture_types)";
+$whereClauses[] = "tbi.nombre_tipo NOT LIKE '%Impresora%'";
 
-// Aplicar filtro de Secretaría
 if (!empty($filtroSecretaria)) {
     $sec = $conn->real_escape_string($filtroSecretaria);
-    $whereSQL .= " AND secretaria = '$sec'";
+    $whereClauses[] = "(s.nombres = '$sec' OR (s.nombres IS NULL AND '$sec' = 'SATQ'))";
 }
 
-// Aplicar filtro de Dirección
 if (!empty($filtroDireccion)) {
     $dir = $conn->real_escape_string($filtroDireccion);
-    $whereSQL .= " AND direccion = '$dir'";
+    $whereClauses[] = "(d.nombre_direccion = '$dir' OR (d.nombre_direccion IS NULL AND inv.nombre_ubicacion = '$dir'))";
 }
 
+$whereSQL = "WHERE " . implode(' AND ', $whereClauses);
+
 // Obtener lista de Secretarías
-$sqlSec = "SELECT DISTINCT secretaria FROM equiposbd WHERE secretaria IS NOT NULL AND secretaria != '' ORDER BY secretaria ASC";
+$sqlSec = "SELECT DISTINCT nombres as secretaria FROM Secretarias ORDER BY nombres ASC";
 $resSec = $conn->query($sqlSec);
 
 // Obtener lista de Direcciones (Dependiente de la secretaría seleccionada)
-$sqlDir = "SELECT DISTINCT direccion FROM equiposbd WHERE direccion IS NOT NULL AND direccion != ''";
 if (!empty($filtroSecretaria)) {
-    $sqlDir .= " AND secretaria = '$sec'";
+    $sec = $conn->real_escape_string($filtroSecretaria);
+    $sqlDir = "SELECT DISTINCT d.nombre_direccion as direccion 
+               FROM cat_direcciones d 
+               JOIN Secretarias s ON d.id_secretaria = s.id_secretaria 
+               WHERE s.nombres = '$sec' 
+               ORDER BY d.nombre_direccion ASC";
+} else {
+    $sqlDir = "SELECT DISTINCT nombre_direccion as direccion FROM cat_direcciones ORDER BY nombre_direccion ASC";
 }
-$sqlDir .= " ORDER BY direccion ASC";
 $resDir = $conn->query($sqlDir);
 
-// 3. Obtener equipos
-$sql = "SELECT * FROM equiposbd $whereSQL ORDER BY direccion ASC";
+// 3. Obtener equipos de la tabla activa de inventario
+$sql = "SELECT inv.id, inv.num_inventario as numInventario, tbi.nombre_tipo as tipoequipo, 
+               CONCAT(COALESCE(inv.marca,''), ' ', COALESCE(inv.modelo,'')) as marca_modelo,
+               inv.personal_asignado as usuariosEquipo, 
+               COALESCE(d.nombre_direccion, inv.nombre_ubicacion) as direccion, 
+               inv.estatus as estatus_equipo, inv.descripcion as observaciones,
+               COALESCE(s.nombres, 'SATQ') as secretaria,
+               inv.descripcion, inv.marca, inv.modelo
+        FROM inventario_soporte inv
+        LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
+        LEFT JOIN registros_ad r ON TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) = inv.personal_asignado
+        LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+        LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
+        $whereSQL 
+        ORDER BY direccion ASC";
 $result = $conn->query($sql);
 
 $totalEquipos = 0;
@@ -56,14 +140,16 @@ $equiposCandidatos = [];  // i3/i5/i7 que les falta RAM, SSD o Win11
 $equiposOptimos = [];     // i3/i5/i7 Full (SSD + RAM + Win11)
 
 // 4. LÓGICA DE ANÁLISIS MEJORADA
-if ($result->num_rows > 0) {
+if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $totalEquipos++;
         
-        $ramRaw = $row['ram']; 
-        $discoRaw = $row['tipodisco_capa'];
-        $procRaw = $row['procesador'];
-        $osRaw = $row['sistemaOperativo'];
+        $hardware = analizarDescripcionHardware($row['descripcion'], $row['marca'] ?? '', $row['modelo'] ?? '');
+        
+        $ramRaw = $hardware['ram']; 
+        $discoRaw = $hardware['tipodisco_capa'];
+        $procRaw = $hardware['procesador'];
+        $osRaw = $hardware['sistemaOperativo'];
         $estatusRaw = $row['estatus_equipo'] ?? ''; // Obtenemos el estatus
 
         $ramGB = intval($ramRaw); 
@@ -79,7 +165,13 @@ if ($result->num_rows > 0) {
                        stripos($procRaw, 'Duo') !== false);
 
         // Detectar si el equipo está Dañado o de Baja
-        $esDanado = (stripos($estatusRaw, 'Dañado') !== false || stripos($estatusRaw, 'Baja') !== false);
+        $esDanado = (stripos($estatusRaw, 'Dañado') !== false || stripos($estatusRaw, 'Baja') !== false || stripos($estatusRaw, 'Para Baja') !== false);
+
+        // Mapear los datos de hardware al array de la fila para que las vistas no se rompan
+        $row['ram'] = $ramRaw;
+        $row['tipodisco_capa'] = $discoRaw;
+        $row['procesador'] = $procRaw;
+        $row['sistemaOperativo'] = $osRaw;
 
         // --- CLASIFICACIÓN ---
 

@@ -20,7 +20,7 @@ include 'header.php';
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>Registro AD</title>
+    <title>Registro SATQ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <link rel="stylesheet" href="css/style.css">
     <script src="js/sweetalert2.all.min.js"></script>
@@ -49,7 +49,7 @@ include 'header.php';
 <div class="center-container">
     <div class="card">
 
-        <h2>Registro de Usuarios AD</h2>
+        <h2>Registro de Usuarios SATQ</h2>
 
         <form id="formRegistro">
             

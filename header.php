@@ -22,6 +22,7 @@ $rol_usuario = $_SESSION['rol'] ?? 'usuario';
     <script src="js/tailwindcss.js"></script>
 
     <script src="js/sweetalert2.all.min.js"></script>
+    <script src="js/session_timer.js"></script>
 
     <script src="js/jspdf.umd.min.js"></script>
     <script src="js/jspdf.plugin.autotable.min.js"></script>
@@ -53,7 +54,7 @@ $rol_usuario = $_SESSION['rol'] ?? 'usuario';
 <nav class="bg-primary-dark text-white nav-shadow sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
-            <div class="flex items-center gap-3">
+            <a href="dashboard.php" class="flex items-center gap-3 hover:opacity-90 transition-opacity text-white no-underline">
                 <div class="bg-white p-1 rounded-lg">
                     <i class="fas fa-laptop-code text-primary-dark text-xl"></i>
                 </div>
@@ -65,7 +66,7 @@ $rol_usuario = $_SESSION['rol'] ?? 'usuario';
                         <?php echo $sistema_nombre; ?>
                     </p>
                 </div>
-            </div>
+            </a>
 
             <div class="flex items-center gap-4">
                 <div class="text-right hidden sm:block">

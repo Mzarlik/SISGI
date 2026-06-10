@@ -2,7 +2,6 @@
 // actualizar_usuario.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['usuario']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {

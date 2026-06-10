@@ -12,7 +12,7 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 // 2. Lógica de inactividad (Cierre automático)
-$inactividad = 600; // 600 segundos = 10 minutos
+$inactividad = 900; // 900 segundos = 15 minutos
 
 if (isset($_SESSION['ultimo_acceso'])) {
     $vida_sesion = time() - $_SESSION['ultimo_acceso'];

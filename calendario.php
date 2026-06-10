@@ -17,12 +17,36 @@ if (!$esAdmin && !$esTecnico) {
     header("Location: dashboard.php");
     exit();
 }
+
+// 2. OBTENER CATÁLOGO DINÁMICO DE LA BASE DE DATOS
+$conn = get_db_connection();
+$catalogo_db = [];
+if ($conn) {
+    $sqlCat = "SELECT d.nombre_direccion, s.nombres as nombre_secretaria 
+               FROM cat_direcciones d 
+               JOIN Secretarias s ON d.id_secretaria = s.id_secretaria 
+               ORDER BY s.nombres ASC, d.nombre_direccion ASC";
+    $resCat = $conn->query($sqlCat);
+    if ($resCat) {
+        while ($row = $resCat->fetch_assoc()) {
+            $sec = $row['nombre_secretaria'];
+            $dir = $row['nombre_direccion'];
+            if (!isset($catalogo_db[$sec])) {
+                $catalogo_db[$sec] = [];
+            }
+            $catalogo_db[$sec][] = $dir;
+        }
+    }
+    $conn->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Calendario TI | SISGI</title>
+    <title>Calendario SATQ | SISGI</title>
+    <script src="js/sweetalert2.all.min.js"></script>
+    <script src="js/session_timer.js"></script>
     <script src="js/tailwindcss.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -44,7 +68,30 @@ if (!$esAdmin && !$esTecnico) {
         /* Ocultar elementos si alguien presiona Ctrl+P por error, 
            para forzarlos a usar el botón dedicado que genera el reporte limpio */
         @media print {
-            body { display: none; } 
+            aside, header, #btn-imprimir, .no-print, .fc-button-group, .fc-today-button { 
+                display: none !important; 
+            }
+            body { 
+                background: white !important; 
+                color: black !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            .flex-1, main, #calendar { 
+                height: auto !important; 
+                overflow: visible !important; 
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .fc-scroller { 
+                height: auto !important; 
+                overflow: visible !important; 
+            }
+            .fc-header-toolbar { 
+                margin-top: 10px !important;
+                margin-bottom: 20px !important; 
+            }
         }
     </style>
 </head>
@@ -59,7 +106,7 @@ if (!$esAdmin && !$esTecnico) {
                 <i class="fas fa-home w-5"></i> Dashboard
             </a>
             <a href="calendario.php" class="flex items-center gap-3 px-3 py-2 bg-white/10 text-white rounded-lg border-l-4 border-white">
-                <i class="far fa-calendar-alt w-5"></i> Calendario TI
+                <i class="far fa-calendar-alt w-5"></i> Calendario SATQ
             </a>
         </div>
     </aside>
@@ -190,28 +237,7 @@ if (!$esAdmin && !$esTecnico) {
         let calendar; 
 
         // --- CONFIGURACIÓN CATÁLOGO ---
-        const catalogo = {
-            "Presidencia Municipal": ["Secretaría Presidencial", "Secretaría Particular", "Secretaría de Relaciones Públicas", "Secretaría de Giras, Logística y Eventos especiales", "Secretaría de Evaluación del Desempeño y Calidad del Servicio", "Secretaría de Asesores Técnicos", "Unidad de Vinculación para la Transparencia y Acceso a la información Pública"],
-            "Secretaría General del Ayuntamiento": ["Secretaría General del Ayuntamiento", "Dirección de Gobierno Municipal", "Dirección de Transporte Público", "Dirección de Registro Civil", "Dirección del Centro de Retención Municipal", "Dirección General de Archivo Municipal", "Unidad de Asuntos Religiosos", "Unidad de Atención al Migrante", "Unidad Especializada de Derechos Humanos", "Dirección de Asuntos Nacionales e Internacionales", "Secretaría Ejecutiva del SIPINNA", "Unidad Técnica Jurídica", "Unidad de Estadística Poblacional"],
-            "Tesorería Municipal": ["Tesorería Municipal", "Dirección de Finanzas", "Dirección de Ingresos", "Dirección de Egresos", "Dirección de Cobranza y Fiscalización", "Dirección de Catastro"],
-            "Órgano Interno de Control": ["Órgano Interno de Control", "Dirección de Normatividad, Control y Evaluación", "Dirección de Auditoría Financiera", "Dirección de Investigación Administrativa y Responsabilidades", "Dirección de Substanciadora, Consultiva y de Análisis Jurídico"],
-            "Secretaría de Seguridad Ciudadana Municipal": ["Subsecretaría de Seguridad Ciudadana Municipal", "Dirección de Policía Preventiva", "Dirección de Tránsito Municipal", "Dirección de Participación Ciudadana y Prevención del Delito", "Academia de Policía", "Dirección de Asuntos Internos", "Dirección de Policía Turística", "Dirección de Policía de Tránsito y Vialidad", "Dirección de Planeación y Administración", "Dirección de Jurídica", "Dirección de Psicología Policial", "Subdirección de Comunicación Social"],
-            "Oficialía Mayor": ["Oficialía Mayor", "Dirección de Recursos Humanos", "Dirección de Servicios Generales", "Dirección de Adquisiciones y Licitaciones", "Dirección de Medios de Comunicación Municipales y Difunsión", "Unidad de Parque Vehicular", "Dirección de Nuevas Tecnologías de la Información y Comunicaciones", "Dirección de Imagen Institucional", "Dirección de Capacitación", "Unidad de Inventario y Almacén"],
-            "Secretaría de Justicia Social y Participación Ciudadana": ["Secretaría de Justicia Social y Participación Ciudadana", "Dirección de Participación Ciudadana", "Dirección de Educación, Desarrollo Humano y Bibliotecas", "Unidad de Igualdad de Género", "Unidad de Asuntos Indígenas", "Unidad de Atención a Personas con Discapacidad", "Dirección de Diversidad Sexual"],
-            "Secretaría de Ordenamiento Territorial": ["Secretaría de Ordenamiento Territorial", "Dirección de Desarrollo Urbano y Fisonomía", "Dirección de Supervisión de Movilidad", "Dirección de Regularización de la Tenencia de la Tierra"],
-            "Secretaría de Servicios Públicos Municipales": ["Secretaría de Servicios Públicos Municipales", "Dirección de Normatividad y Saneamiento Ambiental", "Dirección de Alumbrado Público", "Dirección de Espacios Públicos", "Dirección de Mantenimiento e Higiene Urbana", "Coordinación de Panteones y Funerarias"],
-            "Secretaría de Protección Civil, Prevención de Riesgos y Bomberos": ["Secretaría de Protección Civil, Prevención de Riesgos y Bomberos", "Dirección Operativa de Protección Civil", "Dirección de Bomberos", "Dirección de Meteorología", "Dirección de Normatividad y Riesgos"],
-            "Secretaría de Desarrollo Económico y de Atracción de Inversiones": ["Secretaría de Desarrollo Económico y de Atracción de Inversiones", "Dirección de Industria y Comercio", "Dirección de Desarrollo Agropecuario y Pesquero", "Coordinación de Trabajo y Promoción del Empleo", "Comisión de Mejora Regulatoria", "Dirección de Mercados Municipales"],
-            "Secretaría de Planeación y Evaluación": ["Secretaría de Planeación y Evaluación", "Dirección de Planeación de Proyectos de Inversión Pública", "Dirección de Evaluación y Seguimiento"],
-            "Secretaría Jurídica y Consultiva": ["Secretaría Jurídica y Consultiva", "Dirección de Asuntos Contenciosos"],
-            "Secretaría de Justicia Cívica y Convivencia Humana": ["Secretaría de Justicia Cívica y Convivencia Humana", "Dirección de Jueces Cívicos", "Dirección de Centro de Mediación Municipal"],
-            "Secretaría de Turismo": ["Secretaría de Turismo", "Dirección de Mercadotecnía Turística y Promoción", "Dirección de Operaciones y Capacitación Turística"],
-            "Secretaría de Infraestructura y Obras Públicas": ["Secretaría de Infraestructura y Obras Públicas", "Dirección de Proyectos de Obra", "Dirección de Construcción", "Dirección de Maquinaria"],
-            "Secretaría de Salud Municipal": ["Secretaría de Salud Municipal", "Dirección de Salud Física y Mental"],
-            "Secretaría de Medio Ambiente Sustentable y Cambio Climático": ["Secretaría de Medio Ambiente Sustentable y Cambio Climático", "Dirección de Normatividad y Evaluación Ambiental", "Dirección de ZOFEMAT (Zona Federal Marítimo Terrestre)", "Centro de Bienestar Animal (CENCAAZ)", "Dirección de Gestión Ambiental y Cambio Climático"],
-            "Organismos Descentralizados": ["Organismo de Agua Potable", "Organismo de Residuos Sólidos", "Organismo de Vivienda"],
-            "Instituto Municipal de la Cultura y Las Artes": ["Dirección General", "Coordinación de Eventos Culturales", "Centro Cultural Playa del Carmen"]
-        };
+        const catalogo = <?php echo json_encode($catalogo_db, JSON_UNESCAPED_UNICODE); ?>;
 
         const toLocalISO = (date) => {
             const tzOffset = date.getTimezoneOffset() * 60000;
@@ -248,7 +274,7 @@ if (!$esAdmin && !$esTecnico) {
             
             // 2. ASIGNAMOS A LA VARIABLE GLOBAL (SIN 'var' NI 'let' AQUI)
             calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'timeGridWeek',
+                initialView: 'dayGridMonth',
                 slotMinTime: '07:00:00',
                 slotMaxTime: '20:00:00',
                 locale: 'es',
@@ -368,8 +394,11 @@ if (!$esAdmin && !$esTecnico) {
             // Convertimos a formato ISO (YYYY-MM-DD)
             var fechaISO = fechaActual.toISOString().split('T')[0];
             
+            // Obtenemos la vista actual para conservarla en el reporte
+            var vistaActual = calendar.view ? calendar.view.type : 'timeGridWeek';
+            
             // Abrimos el reporte limpio
-            window.open('imprimir_reporte.php?fecha=' + fechaISO, '_blank');
+            window.open('imprimir_reporte.php?fecha=' + fechaISO + '&vista=' + vistaActual, '_blank');
         }
 
         // --- FUNCIONES AUXILIARES ---

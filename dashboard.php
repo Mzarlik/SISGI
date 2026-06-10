@@ -90,6 +90,8 @@ if ($conn) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Pro | Sistema de Gestión</title>
     
+    <script src="js/sweetalert2.all.min.js"></script>
+    <script src="js/session_timer.js"></script>
     <script src="js/tailwindcss.js"></script>
     <link rel="stylesheet" href="css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -155,7 +157,7 @@ if ($conn) {
             
             <?php if ($verCalendario): ?>
             <a href="calendario.php" class="flex items-center gap-3 px-3 py-2.5 text-white/80 hover:bg-white/10 hover:text-white rounded-lg transition-colors">
-                 <i class="far fa-calendar-alt w-5 text-center"></i> Calendario TI
+                 <i class="far fa-calendar-alt w-5 text-center"></i> Calendario SATQ
             </a>
             <?php endif; ?>
 
@@ -186,7 +188,7 @@ if ($conn) {
                     
                     <?php if ($verRegistros): ?>
                         <a href="registro.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
-                            <i class="fas fa-plus text-xs"></i> Usuario AD
+                            <i class="fas fa-plus text-xs"></i> Usuario SATQ
                         </a>
                         <a href="registrar_inventario.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
                             <i class="fas fa-plus text-xs"></i> Equipo (Inventario)
@@ -206,8 +208,8 @@ if ($conn) {
                         <a href="consultar_adq_equipos.php" class="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-md">
                             <i class="fas fa-plus text-xs"></i> Adquisiciones De Equipos
                         </a>
-                        <a href="usuariosAD.php" class="flex items-center gap-3 px-3 py-2.5 text-white/80 hover:bg-white/10 hover:text-white rounded-lg transition-colors">
-                            <i class="fas fa-search w-5 text-center"></i> Usuarios SISGI
+                        <a href="consultar_usuarios.php" class="flex items-center gap-3 px-3 py-2.5 text-white/80 hover:bg-white/10 hover:text-white rounded-lg transition-colors">
+                            <i class="fas fa-search w-5 text-center"></i> Usuarios SATQ
                         </a>
                     <?php endif; ?>
 
@@ -298,7 +300,7 @@ if ($conn) {
                             <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Directorio Activo</p>
-                                    <h3 class="text-base font-bold text-gray-800">Usuarios AD</h3>
+                                    <h3 class="text-base font-bold text-gray-800">Usuarios SATQ</h3>
                                 </div>
                                 <div class="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition">
                                     <i class="fas fa-users text-lg"></i>

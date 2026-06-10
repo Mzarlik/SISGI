@@ -48,30 +48,120 @@ if (!empty($filtroSecretaria) && !empty($filtroDireccion)) {
     $subtitulo = "Dirección: " . $filtroDireccion;
 }
 
+// --- AUXILIAR: PARSEAR HARDWARE ---
+if (!function_exists('analizarDescripcionHardware')) {
+    function analizarDescripcionHardware($descripcion, $marca = '', $modelo = '') {
+        $desc = mb_strtoupper($descripcion);
+        $full = $desc . " | " . mb_strtoupper($marca) . " | " . mb_strtoupper($modelo);
+        
+        // 1. Procesador
+        $procesador = "Intel Core i5"; // Default razonable
+        if (stripos($full, 'Celeron') !== false) {
+            $procesador = "Intel Celeron";
+        } elseif (stripos($full, 'Pentium') !== false) {
+            $procesador = "Intel Pentium";
+        } elseif (stripos($full, 'Atom') !== false) {
+            $procesador = "Intel Atom";
+        } elseif (stripos($full, 'Dual Core') !== false || stripos($full, 'Core 2') !== false || stripos($full, 'Core2') !== false) {
+            $procesador = "Intel Dual Core";
+        } elseif (stripos($full, 'i3') !== false) {
+            $procesador = "Intel Core i3";
+        } elseif (stripos($full, 'i7') !== false) {
+            $procesador = "Intel Core i7";
+        } elseif (stripos($full, 'Ryzen') !== false) {
+            $procesador = "AMD Ryzen";
+        }
+        
+        // 2. RAM
+        $ram = "8 GB"; // Default
+        if (preg_match('/(\d+)\s*(GB|MB|GM|G)/i', $desc, $matches)) {
+            $val = intval($matches[1]);
+            $unit = strtoupper($matches[2]);
+            if ($val > 0) {
+                if ($unit === 'MB') {
+                    $ram = $val . " MB";
+                } else {
+                    $ram = $val . " GB";
+                }
+            }
+        }
+        
+        // 3. Disco
+        $disco = "HDD 500GB"; // Default
+        if (stripos($full, 'SSD') !== false || stripos($full, 'M.2') !== false || stripos($full, 'SOLIDO') !== false || stripos($full, 'SÓLIDO') !== false) {
+            $disco = "SSD 240GB";
+        } elseif (preg_match('/(\d+)\s*(GB|TB)\s*(DISCO|HDD|MECANICO)/i', $desc, $matches)) {
+            $disco = "HDD " . $matches[1] . $matches[2];
+        }
+        
+        // 4. Sistema Operativo
+        $so = "Windows 10 Pro"; // Default
+        if (stripos($full, 'Windows 11') !== false || stripos($full, 'Win 11') !== false || stripos($full, 'Win11') !== false) {
+            $so = "Windows 11 Pro";
+        } elseif (stripos($full, 'Windows 7') !== false || stripos($full, 'Win 7') !== false || stripos($full, 'Win7') !== false || stripos($full, 'WUINDOS 7') !== false) {
+            $so = "Windows 7 Pro";
+        } elseif (stripos($full, 'Windows CE') !== false) {
+            $so = "Windows CE";
+        }
+        
+        return [
+            'procesador' => $procesador,
+            'ram' => $ram,
+            'tipodisco_capa' => $disco,
+            'sistemaOperativo' => $so
+        ];
+    }
+}
+
 // --- 3. OBTENCIÓN Y PROCESAMIENTO DE DATOS ---
 $conn = get_db_connection();
-$whereSQL = "WHERE tipoequipo NOT LIKE '%Impresora%'";
+
+$whereClauses = [];
+$furniture_types = "'Silla', 'Escritorio', 'Mueble', 'Archivero', 'Silla de oficina', 'Escritorio de oficina'";
+$whereClauses[] = "tbi.nombre_tipo NOT IN ($furniture_types)";
+$whereClauses[] = "tbi.nombre_tipo NOT LIKE '%Impresora%'";
 
 if (!empty($filtroSecretaria)) {
     $sec = $conn->real_escape_string($filtroSecretaria);
-    $whereSQL .= " AND secretaria = '$sec'";
-}
-if (!empty($filtroDireccion)) {
-    $dir = $conn->real_escape_string($filtroDireccion);
-    $whereSQL .= " AND direccion = '$dir'";
+    $whereClauses[] = "(s.nombres = '$sec' OR (s.nombres IS NULL AND '$sec' = 'SATQ'))";
 }
 
-$sql = "SELECT * FROM equiposbd $whereSQL ORDER BY direccion ASC";
+if (!empty($filtroDireccion)) {
+    $dir = $conn->real_escape_string($filtroDireccion);
+    $whereClauses[] = "(d.nombre_direccion = '$dir' OR (d.nombre_direccion IS NULL AND inv.nombre_ubicacion = '$dir'))";
+}
+
+$whereSQL = "WHERE " . implode(' AND ', $whereClauses);
+
+$sql = "SELECT inv.id, inv.num_inventario as numInventario, tbi.nombre_tipo as tipoequipo, 
+               CONCAT(COALESCE(inv.marca,''), ' ', COALESCE(inv.modelo,'')) as marca_modelo,
+               inv.personal_asignado as usuariosEquipo, 
+               COALESCE(d.nombre_direccion, inv.nombre_ubicacion) as direccion, 
+               inv.estatus as estatus_equipo, inv.descripcion as observaciones,
+               COALESCE(s.nombres, 'SATQ') as secretaria,
+               inv.descripcion, inv.marca, inv.modelo
+        FROM inventario_soporte inv
+        LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
+        LEFT JOIN registros_ad r ON TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) = inv.personal_asignado
+        LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+        LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
+        $whereSQL 
+        ORDER BY direccion ASC";
+
 $result = $conn->query($sql);
 $datos = [];
 
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
-        $ramGB = intval($row['ram']);
-        $discoRaw = $row['tipodisco_capa'];
-        $procRaw = $row['procesador'];
-        $osRaw = $row['sistemaOperativo'];
+        $hardware = analizarDescripcionHardware($row['descripcion'], $row['marca'] ?? '', $row['modelo'] ?? '');
+        
+        $ramRaw = $hardware['ram']; 
+        $discoRaw = $hardware['tipodisco_capa'];
+        $procRaw = $hardware['procesador'];
+        $osRaw = $hardware['sistemaOperativo'];
+        $estatusRaw = $row['estatus_equipo'] ?? '';
 
+        $ramGB = intval($ramRaw); 
         $esSSD = (stripos($discoRaw, 'SSD') !== false || stripos($discoRaw, 'M.2') !== false || stripos($discoRaw, 'Solid') !== false);
         $esHDD = !$esSSD;
         $tieneWin11 = (stripos($osRaw, '11') !== false);
@@ -80,6 +170,14 @@ if ($result && $result->num_rows > 0) {
                        stripos($procRaw, 'Pentium') !== false || 
                        stripos($procRaw, 'Atom') !== false || 
                        stripos($procRaw, 'Duo') !== false);
+
+        $esDanado = (stripos($estatusRaw, 'Dañado') !== false || stripos($estatusRaw, 'Baja') !== false || stripos($estatusRaw, 'Para Baja') !== false);
+
+        // Mapear los datos de hardware al array de la fila para que no se rompan las referencias
+        $row['ram'] = $ramRaw;
+        $row['tipodisco_capa'] = $discoRaw;
+        $row['procesador'] = $procRaw;
+        $row['sistemaOperativo'] = $osRaw;
 
         $agregar = false;
         $esForzado = false;
@@ -107,8 +205,15 @@ if ($result && $result->num_rows > 0) {
 
         // SI NO FUE FORZADO, SE APLICA LA LÓGICA NORMAL
         if (!$esForzado) {
-            // 1. Es Obsoleto (CRÍTICO)
-            if ($esObsoleto) {
+            // 1. Es Obsoleto o Dañado (CRÍTICO)
+            if ($esDanado) {
+                if ($tipoReporte == 'criticos' || $tipoReporte == 'unificado') {
+                    $row['etiqueta_tipo'] = 'BAJA';
+                    $row['clase_badge'] = 'badge-baja';
+                    $row['diagnostico_print'] = "Equipo Dañado / Baja";
+                    $agregar = true;
+                }
+            } elseif ($esObsoleto) {
                 if ($tipoReporte == 'criticos' || $tipoReporte == 'unificado') {
                     $row['etiqueta_tipo'] = 'BAJA';
                     $row['clase_badge'] = 'badge-baja';
@@ -118,23 +223,27 @@ if ($result && $result->num_rows > 0) {
             } 
             // 2. Es Candidato (MEJORA)
             else {
-                $acciones = [];
-                $esCandidato = false;
-                $soloRequiereWin11 = false;
+                // Si es SSD, >=8GB y Win11, es ÓPTIMO, así que no se agrega a Bajas o Mejoras.
+                $esOptimo = ($esSSD && $ramGB >= 8 && $tieneWin11);
+                if (!$esOptimo) {
+                    $acciones = [];
+                    $esCandidato = false;
+                    $soloRequiereWin11 = false;
 
-                if ($esHDD) { $acciones[] = "Cambio de unidad a SSD"; $esCandidato = true; }
-                if ($ramGB < 8) { $acciones[] = "Aumento de memoria RAM (Actual: $ramGB GB)"; $esCandidato = true; }
-                if (!$tieneWin11) { $acciones[] = "Actualizar Sistema Operativo a Win 11"; $esCandidato = true; }
+                    if ($esHDD) { $acciones[] = "Cambio de unidad a SSD"; $esCandidato = true; }
+                    if ($ramGB < 8) { $acciones[] = "Aumento de memoria RAM (Actual: $ramGB GB)"; $esCandidato = true; }
+                    if (!$tieneWin11) { $acciones[] = "Actualizar Sistema Operativo a Win 11"; $esCandidato = true; }
 
-                if (!$esHDD && $ramGB >= 8 && !$tieneWin11) { $soloRequiereWin11 = true; }
-                if ($vista == 'filtrada' && $soloRequiereWin11) { $esCandidato = false; }
+                    if (!$esHDD && $ramGB >= 8 && !$tieneWin11) { $soloRequiereWin11 = true; }
+                    if ($vista == 'filtrada' && $soloRequiereWin11) { $esCandidato = false; }
 
-                if ($esCandidato) {
-                    if ($tipoReporte == 'candidatos' || $tipoReporte == 'unificado') {
-                        $row['etiqueta_tipo'] = 'MEJORA';
-                        $row['clase_badge'] = 'badge-mejora';
-                        $row['diagnostico_print'] = implode(', ', $acciones);
-                        $agregar = true;
+                    if ($esCandidato) {
+                        if ($tipoReporte == 'candidatos' || $tipoReporte == 'unificado') {
+                            $row['etiqueta_tipo'] = 'MEJORA';
+                            $row['clase_badge'] = 'badge-mejora';
+                            $row['diagnostico_print'] = implode(', ', $acciones);
+                            $agregar = true;
+                        }
                     }
                 }
             }

@@ -102,6 +102,7 @@ if (isset($_GET['ajax'])) {
     <script src="js/tailwindcss.js"></script>
     <link rel="stylesheet" href="css/all.min.css">
     <script src="js/sweetalert2.all.min.js"></script>
+    <script src="js/session_timer.js"></script>
     <script src="js/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="js/xlsx.full.min.js"></script>
@@ -684,21 +685,26 @@ if (isset($_GET['ajax'])) {
         const logoHacienda = new Image();
         logoHacienda.src = 'img/logo_hacienda.png'; // Asume que tienes este logo en /img/
 
-        logoHacienda.onload = function() {
+        Promise.all([
+            new Promise((resolve) => { logoGob.onload = resolve; logoGob.onerror = resolve; }),
+            new Promise((resolve) => { logoHacienda.onload = resolve; logoHacienda.onerror = resolve; })
+        ]).then(() => {
             const marginLeft = 40;
             const marginRight = 40;
             const pageHeight = doc.internal.pageSize.getHeight();
             const pageWidth = doc.internal.pageSize.getWidth();
-            let startY = 40;
+            let startY = 20;
 
             // Logo de Gobierno un poco más ancho y alto
-            doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
-            startY += 55;
+            if (logoGob.width > 0) {
+                doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
+            }
+            startY += 50;
 
             doc.setFontSize(13);
             doc.setFont("Montserrat", "bold");
             doc.text("Anexo de resguardo de Bienes Muebles", pageWidth / 2, startY, { align: "center" });
-            startY += 30;
+            startY += 20;
 
             doc.setFontSize(10);
             doc.text("I.    DATOS DE DEPENDENCIA", marginLeft, startY);
@@ -717,10 +723,10 @@ if (isset($_GET['ajax'])) {
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 2.5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
                 columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
             });
-            startY = doc.lastAutoTable.finalY + 20;
+            startY = doc.lastAutoTable.finalY + 15;
 
             doc.setFont("Montserrat", "bold");
             doc.text("II.   DATOS DEL TRABAJADOR", marginLeft, startY);
@@ -739,7 +745,7 @@ if (isset($_GET['ajax'])) {
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 2.5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 },
                 columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold' } }
             });
             startY = doc.lastAutoTable.finalY + 20;
@@ -763,12 +769,22 @@ if (isset($_GET['ajax'])) {
 
             doc.autoTable({
                 startY: startY,
+                margin: { bottom: 85 },
                 head: [['No.', 'Descripcion del bien', 'B.M', 'No. Serie', 'Estado', 'Ubicacion fisica', 'Observaciones']],
                 body: tablaBienes,
                 theme: 'grid',
+                rowPageBreak: 'avoid',
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
                 styles: { font: 'Montserrat', fontSize: 8, cellPadding: 3, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
-                columnStyles: { 0: { cellWidth: 20, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 50 }, 6: { cellWidth: 40 } }
+                columnStyles: { 
+                    0: { cellWidth: 25, halign: 'center' }, 
+                    1: { cellWidth: 'auto' }, 
+                    2: { cellWidth: 55, halign: 'center' }, 
+                    3: { cellWidth: 85, halign: 'center' }, 
+                    4: { cellWidth: 65, halign: 'center' }, 
+                    5: { cellWidth: 150 }, 
+                    6: { cellWidth: 65, halign: 'center' } 
+                }
             });
             startY = doc.lastAutoTable.finalY + 20;
 
@@ -784,8 +800,8 @@ if (isset($_GET['ajax'])) {
             
             startY += (splitText.length * 12) + 20;
 
-            // Si no hay suficiente espacio para las firmas (alto aprox. 160 pt) en la página actual, agregamos una nueva
-            if (startY > (pageHeight - 240)) {
+            // Si no hay suficiente espacio para las firmas (alto aprox. 140 pt) en la página actual antes del pie de página, agregamos una nueva
+            if (startY > (pageHeight - 195)) {
                 doc.addPage();
                 startY = 40;
             }
@@ -799,7 +815,7 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
                 body: [
-                    [`\n\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, '\n\n\n\n_______________________________', '\n\n\n\nSistemas SATQ'],
+                    [`\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, '\n\n\n_______________________________', '\n\n\nLeydi del Pilar Ulloa Ramirez'],
                     [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
                 ],
                 theme: 'grid',
@@ -809,21 +825,29 @@ if (isset($_GET['ajax'])) {
                 styles: { font: 'Montserrat', fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 1.0, halign: 'center', valign: 'bottom' }
             });
 
-            // Logo Hacienda con proporción alargada para que no se vea comprimido
-            doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
-
-            doc.setFontSize(8);
-            doc.setFont("Montserrat", "normal");
-            doc.setTextColor(100);
-            const footerText = "Calle 1a sur esquina av. 15  Col. centro\nPlaya del Carmen, Quintana Roo\n01 (984) 87 303 23\nwww.satq.qroo.gob.mx";
-            // Movemos el texto a la izquierda para balancear el pie de página y evitar que se encime
-            doc.text(footerText, marginLeft, pageHeight - 55, { align: 'left' });
+            // Dibujar pie de página (Logo Hacienda, dirección y numeración de página) en cada una de las hojas
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                
+                // Logo Hacienda con proporción alargada para que no se vea comprimido
+                if (logoHacienda.width > 0) {
+                    doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
+                }
+    
+                doc.setFontSize(8);
+                doc.setFont("Montserrat", "normal");
+                doc.setTextColor(100);
+                const footerText = "Calle 1a sur esquina av. 15  Col. centro\nPlaya del Carmen, Quintana Roo\n01 (984) 87 303 23\nwww.satq.qroo.gob.mx";
+                // Texto de dirección a la izquierda
+                doc.text(footerText, marginLeft, pageHeight - 55, { align: 'left' });
+                
+                // Paginación "Página X de Y" alineado a la derecha en la parte inferior
+                doc.text(`Página ${i} de ${totalPages}`, pageWidth - marginRight, pageHeight - 15, { align: 'right' });
+            }
 
             doc.save(`Resguardo_${limpiarTexto(datosTrabajador.nombre).replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
-        };
-        logoHacienda.onerror = function() {
-            Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF. Verifica que los archivos "logo_gobierno.png" y "logo_hacienda.png" existan en la carpeta "img/".', 'error');
-        };
+        });
     }
 
     function iniciarDictamenBaja() {
@@ -864,7 +888,10 @@ if (isset($_GET['ajax'])) {
         const logoHacienda = new Image();
         logoHacienda.src = 'img/logo_hacienda.png';
 
-        logoHacienda.onload = function() {
+        Promise.all([
+            new Promise((resolve) => { logoGob.onload = resolve; logoGob.onerror = resolve; }),
+            new Promise((resolve) => { logoHacienda.onload = resolve; logoHacienda.onerror = resolve; })
+        ]).then(() => {
             let startY = 40;
             if(logoGob.width > 0) doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
             startY += 75;
@@ -932,10 +959,7 @@ if (isset($_GET['ajax'])) {
 
             doc.save(`Dictamen_Baja_${fechaActual.replace(/\//g, '')}.pdf`);
             Swal.close();
-        };
-        logoHacienda.onerror = function() {
-            Swal.fire('Error', 'No se pudieron cargar las imágenes de logo para el PDF.', 'error');
-        };
+        });
     }
 
     function exportarPDF() {
