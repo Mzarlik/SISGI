@@ -31,7 +31,7 @@ if (isset($_GET['ajax'])) {
     $search_term = $_GET['q'] ?? '';
     $filtro_personal = $_GET['u'] ?? ''; 
     $pagina = isset($_GET['p']) && is_numeric($_GET['p']) ? (int)$_GET['p'] : 1;
-    $registros_por_pagina = 10;
+    $registros_por_pagina = 15;
     $offset = ($pagina - 1) * $registros_por_pagina;
 
     $conditions = [];
@@ -104,6 +104,7 @@ if (isset($_GET['ajax'])) {
     <script src="js/sweetalert2.all.min.js"></script>
     <script src="js/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/xlsx.full.min.js"></script>
     <!-- Fuentes Montserrat para jsPDF -->
     <script src="js/Montserrat-normal.js"></script>
     <script src="js/Montserrat-bold.js"></script>
@@ -175,6 +176,9 @@ if (isset($_GET['ajax'])) {
                 <button onclick="exportarPDF()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
                     <i class="fas fa-file-pdf w-6 text-center text-red-600"></i> Exportar PDF
                 </button>
+                <button onclick="exportarExcel()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
+                    <i class="fas fa-file-excel w-6 text-center text-green-600"></i> Exportar Excel
+                </button>
                 <a href="dashboard.php" class="block px-4 py-3 text-gray-700 hover:bg-gray-100 transition font-medium">
                     <i class="fas fa-home w-6 text-center text-gray-600"></i> Menú Principal
                 </a>
@@ -193,6 +197,7 @@ if (isset($_GET['ajax'])) {
                     <th class="px-4 py-4 text-left">No. Bien Mueble</th>
                     <th class="px-4 py-4 text-left">Tipo / Marca</th>
                     <th class="px-4 py-4 text-left">Responsable</th>
+                    <th class="px-4 py-4 text-left">Ubicación Física</th>
                     <th class="px-4 py-4 text-center">Acciones</th>
                 </tr>
             </thead>
@@ -277,7 +282,6 @@ if (isset($_GET['ajax'])) {
                 });
                 document.body.appendChild(datalist);
             }).catch(e => console.log('Error cargando usuarios:', e));
-        });
     });
 
     function cargarDatos() {
@@ -297,7 +301,7 @@ if (isset($_GET['ajax'])) {
 
     function renderizarTabla(datos) {
         const tabla = document.getElementById('tabla-resultados');
-        tabla.innerHTML = datos.length ? '' : '<tr><td colspan="6" class="p-10 text-center text-gray-500 italic">No se encontraron bienes para este filtro.</td></tr>';
+        tabla.innerHTML = datos.length ? '' : '<tr><td colspan="7" class="p-10 text-center text-gray-500 italic">No se encontraron bienes para este filtro.</td></tr>';
 
         datos.forEach(row => {
             let iconoFotoHTML = row.ruta_foto 
@@ -305,7 +309,7 @@ if (isset($_GET['ajax'])) {
                 : `<span class="text-gray-300"><i class="fas fa-image text-2xl"></i></span>`;
 
             const tr = document.createElement('tr');
-            tr.className = "hover:bg-gray-50 transition-colors";
+            tr.className = "hover:bg-[#fdf2f5] transition-colors duration-150 border-b border-gray-100";
             let isChecked = equiposSeleccionadosMap.has(Number(row.id)) ? 'checked' : '';
             
             // Renderizamos la fila, incluyendo el botón de edición si es administrador
@@ -314,20 +318,40 @@ if (isset($_GET['ajax'])) {
                     <input type="checkbox" class="cb-equipo w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" value="${row.id}" onchange="toggleSeleccion(this, ${row.id})" ${isChecked}>
                 </td>
                 <td class="px-4 py-4 text-center">${iconoFotoHTML}</td>
-                <td class="px-4 py-4 font-bold text-primary-dark">${row.no_bien_mueble || 'S/N'}</td>
                 <td class="px-4 py-4">
-                    <span class="text-xs text-gray-400 uppercase block font-semibold">${row.nombre_tipo || 'N/A'}</span>
-                    <span class="font-medium text-gray-800">${row.marca}</span>
+                    <span class="font-bold text-gray-800 block font-mono">#${row.no_bien_mueble || 'S/N'}</span>
+                    <span class="text-xs text-gray-400 block mt-0.5 font-semibold">Inv: ${row.num_inventario || '---'}</span>
                 </td>
-                <td class="px-4 py-4 font-medium text-gray-700">
-                    <i class="fas fa-user-circle text-gray-400 mr-1"></i> ${row.personal_asignado || 'STOCK'}
+                <td class="px-4 py-4">
+                    <span class="text-xs text-gray-500 uppercase tracking-wide block mb-0.5 font-bold">${row.nombre_tipo || 'N/A'}</span>
+                    <span class="text-sm font-semibold text-primary-dark">${row.marca || ''} ${row.modelo || ''}</span>
+                </td>
+                <td class="px-4 py-4">
+                    ${row.personal_asignado && row.personal_asignado !== 'STOCK' && row.personal_asignado !== 'Sin Asignar' ? `
+                        <button onclick="verEditarResponsable('${row.personal_asignado}')" class="font-bold text-gray-800 block hover:text-primary-dark hover:underline text-left transition focus:outline-none">
+                            <i class="fas fa-user-circle text-gray-400 mr-1"></i> ${row.personal_asignado}
+                        </button>
+                    ` : `
+                        <span class="text-gray-400 italic block text-xs font-semibold">
+                            <i class="fas fa-box text-gray-300 mr-1"></i> EN STOCK
+                        </span>
+                    `}
+                    <span class="text-xs text-gray-500 block mt-1 font-medium">
+                        Estatus: <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${row.estatus === 'Operativo' || row.estatus === 'Asignado' || row.estatus === 'IDENTIFICADO' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}">${row.estatus || 'Operativo'}</span>
+                    </span>
+                </td>
+                <td class="px-4 py-4 font-medium text-gray-700 text-sm">
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>
+                        <span>${row.nombre_ubicacion || '---'}</span>
+                    </div>
                 </td>
                 <td class="px-4 py-4 text-center whitespace-nowrap space-x-1">
-                    <button class="bg-indigo-100 text-indigo-700 p-2 rounded shadow hover:bg-indigo-200 transition" onclick="verDetalles(${row.id})" title="Ver Detalles">
+                    <button class="w-8 h-8 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition inline-flex items-center justify-center shadow-sm" onclick="verDetalles(${row.id})" title="Ver Detalles">
                         <i class="fas fa-eye"></i>
                     </button>
                     ${esAdmin ? `
-                    <button class="bg-blue-500 text-white p-2 rounded shadow hover:bg-blue-600 transition" onclick="editarBienCompleto(${row.id})" title="Editar Información">
+                    <button class="w-8 h-8 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition inline-flex items-center justify-center shadow-sm" onclick="editarBienCompleto(${row.id})" title="Editar Información">
                         <i class="fas fa-pencil-alt"></i>
                     </button>
                     ` : ''}
@@ -652,7 +676,7 @@ if (isset($_GET['ajax'])) {
         };
 
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'pt', 'letter');
+        const doc = new jsPDF('l', 'pt', 'letter');
 
         const logoGob = new Image();
         logoGob.src = 'img/logo_gobierno.png'; // Asume que tienes este logo en /img/
@@ -760,6 +784,12 @@ if (isset($_GET['ajax'])) {
             
             startY += (splitText.length * 12) + 20;
 
+            // Si no hay suficiente espacio para las firmas (alto aprox. 160 pt) en la página actual, agregamos una nueva
+            if (startY > (pageHeight - 240)) {
+                doc.addPage();
+                startY = 40;
+            }
+
             doc.setFont("Montserrat", "bold");
             doc.setFontSize(10);
             doc.text("V. FIRMAS", marginLeft, startY);
@@ -773,8 +803,10 @@ if (isset($_GET['ajax'])) {
                     [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
                 ],
                 theme: 'grid',
+                tableLineWidth: 1.5,
+                tableLineColor: [0, 0, 0],
                 headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, halign: 'center', valign: 'bottom' }
+                styles: { font: 'Montserrat', fontSize: 9, cellPadding: 5, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 1.0, halign: 'center', valign: 'bottom' }
             });
 
             // Logo Hacienda con proporción alargada para que no se vea comprimido
@@ -783,9 +815,9 @@ if (isset($_GET['ajax'])) {
             doc.setFontSize(8);
             doc.setFont("Montserrat", "normal");
             doc.setTextColor(100);
-            const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
+            const footerText = "Calle 1a sur esquina av. 15  Col. centro\nPlaya del Carmen, Quintana Roo\n01 (984) 87 303 23\nwww.satq.qroo.gob.mx";
             // Movemos el texto a la izquierda para balancear el pie de página y evitar que se encime
-            doc.text(footerText, marginLeft, pageHeight - 40, { align: 'left' });
+            doc.text(footerText, marginLeft, pageHeight - 55, { align: 'left' });
 
             doc.save(`Resguardo_${limpiarTexto(datosTrabajador.nombre).replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
         };
@@ -958,6 +990,185 @@ if (isset($_GET['ajax'])) {
                 Swal.close();
             })
             .catch(() => Swal.fire('Error', 'No se pudo generar el archivo', 'error'));
+    }
+
+    function exportarExcel() {
+        const dropdown = document.getElementById('dropdownOpciones');
+        if (dropdown) dropdown.classList.add('hidden');
+
+        const busquedaActual = document.getElementById('searchInput').value;
+        const personalActual = document.getElementById('userFilter').value;
+        
+        Swal.fire({ title: 'Generando Excel...', text: 'Preparando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        
+        fetch(`consultar_inventario.php?ajax=1&export=excel&q=${encodeURIComponent(busquedaActual)}&u=${encodeURIComponent(personalActual)}`)
+            .then(res => res.json())
+            .then(res => {
+                const rows = [
+                    ["REPORTE DE INVENTARIO - SOPORTE TÉCNICO"],
+                    [personalActual ? `Responsable: ${personalActual}` : "Todos los responsables"],
+                    [`Fecha de Generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+                    [],
+                    ["No. Bien Mueble", "Tipo de Bien", "Marca", "Modelo", "No. Serie", "Personal Asignado", "Ubicación", "Estatus", "Descripción"]
+                ];
+
+                res.data.forEach(item => {
+                    rows.push([
+                        item.no_bien_mueble || 'S/N',
+                        item.nombre_tipo || 'N/A',
+                        item.marca || '',
+                        item.modelo || '',
+                        item.num_serie || 'S/N',
+                        item.personal_asignado || 'STOCK',
+                        item.nombre_ubicacion || '',
+                        item.estatus || 'Operativo',
+                        item.descripcion || ''
+                    ]);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+
+                ws['!cols'] = [
+                    { wch: 18 }, // No. Bien Mueble
+                    { wch: 15 }, // Tipo
+                    { wch: 15 }, // Marca
+                    { wch: 15 }, // Modelo
+                    { wch: 18 }, // Serie
+                    { wch: 25 }, // Personal
+                    { wch: 35 }, // Ubicación
+                    { wch: 15 }, // Estatus
+                    { wch: 50 }  // Descripción
+                ];
+
+                XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+                XLSX.writeFile(wb, `Inventario_${new Date().toISOString().slice(0,10)}.xlsx`);
+                Swal.close();
+            })
+            .catch((e) => {
+                console.error(e);
+                Swal.fire('Error', 'No se pudo generar el archivo Excel', 'error');
+            });
+    }
+
+    function verEditarResponsable(nombre) {
+        Swal.fire({
+            title: 'Cargando datos...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(nombre)}`)
+            .then(res => res.json())
+            .then(data => {
+                Swal.close();
+                if (!data.found) {
+                    Swal.fire('Atención', 'No se encontraron datos para este responsable en la base de datos de usuarios.', 'info');
+                    return;
+                }
+                
+                const details = data.details;
+                
+                let htmlContent = `
+                    <div class="text-left mt-4 text-sm">
+                        <input type="hidden" id="usr-id" value="${details.id || 0}">
+                        <input type="hidden" id="usr-id-dir" value="${details.id_direccion || 0}">
+                        <input type="hidden" id="usr-oficio" value="${details.num_oficio || ''}">
+                        <input type="hidden" id="usr-usuario" value="${details.usuario || ''}">
+                        <input type="hidden" id="usr-pass" value="${details.contrasena || ''}">
+
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="swal-field-label">Nombres</label>
+                                <input id="usr-nombres" class="swal-custom-input" value="${details.nombres || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                            <div>
+                                <label class="swal-field-label">Primer Apellido</label>
+                                <input id="usr-pat" class="swal-custom-input" value="${details.apellido_paterno || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="swal-field-label">Segundo Apellido</label>
+                                <input id="usr-mat" class="swal-custom-input" value="${details.apellido_materno || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                            <div>
+                                <label class="swal-field-label">Número de Empleado</label>
+                                <input id="usr-num-emp" class="swal-custom-input" value="${details.num_empleado || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                        </div>
+
+                        <label class="swal-field-label">Cargo</label>
+                        <input id="usr-cargo" class="swal-custom-input" value="${details.cargo || ''}" ${esAdmin ? '' : 'readonly'}>
+
+                        <label class="swal-field-label">Área o Departamento</label>
+                        <input class="swal-custom-input bg-gray-50 text-gray-500 cursor-not-allowed" value="${details.area || 'Sin asignar'}" readonly>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="swal-field-label">Correo Electrónico</label>
+                                <input id="usr-correo" class="swal-custom-input" value="${details.correo || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                            <div>
+                                <label class="swal-field-label">Teléfono</label>
+                                <input id="usr-telefono" class="swal-custom-input" value="${details.telefono || ''}" ${esAdmin ? '' : 'readonly'}>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                Swal.fire({
+                    title: `<div class="text-xl font-bold border-b pb-2"><i class="fas fa-user-circle text-primary-dark mr-1"></i> Detalles del Responsable</div>`,
+                    html: htmlContent,
+                    width: '600px',
+                    showCancelButton: true,
+                    cancelButtonText: 'Cerrar',
+                    confirmButtonText: esAdmin ? '<i class="fas fa-save mr-1"></i> Guardar Cambios' : 'Aceptar',
+                    confirmButtonColor: '#721538',
+                    preConfirm: () => {
+                        if (!esAdmin) return null;
+                        return {
+                            id: document.getElementById('usr-id').value,
+                            id_direccion: document.getElementById('usr-id-dir').value,
+                            num_oficio: document.getElementById('usr-oficio').value,
+                            nombres: document.getElementById('usr-nombres').value,
+                            apellido_paterno: document.getElementById('usr-pat').value,
+                            apellido_materno: document.getElementById('usr-mat').value,
+                            usuario: document.getElementById('usr-usuario').value,
+                            contrasena: document.getElementById('usr-pass').value,
+                            cargo: document.getElementById('usr-cargo').value,
+                            correo_electronico: document.getElementById('usr-correo').value,
+                            telefono: document.getElementById('usr-telefono').value
+                        }
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed && result.value) {
+                        const data = new FormData();
+                        for (let key in result.value) {
+                            data.append(key, result.value[key]);
+                        }
+                        
+                        Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
+                        fetch('actualizar_usuario.php', { method: 'POST', body: data })
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.success) {
+                                    Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 1000, showConfirmButton: false }).then(() => {
+                                        cargarDatos();
+                                    });
+                                } else {
+                                    Swal.fire('Error', d.message, 'error');
+                                }
+                            })
+                            .catch(() => Swal.fire('Error', 'No se pudo guardar la información del usuario.', 'error'));
+                    }
+                });
+            })
+            .catch(() => {
+                Swal.close();
+                Swal.fire('Error', 'No se pudieron obtener los detalles del usuario.', 'error');
+            });
     }
 
     function renderizarPaginacion(meta) {

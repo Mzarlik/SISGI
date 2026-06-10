@@ -38,7 +38,7 @@ if (isset($_GET['ajax_details'])) {
         }
         $where_match = implode(' AND ', $condiciones);
 
-        $sql = "SELECT r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, d.nombre_direccion as area 
+        $sql = "SELECT r.id, r.nombres, r.apellido_paterno, r.apellido_materno, r.usuario, r.contrasena, r.num_oficio, r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, r.id_direccion, d.nombre_direccion as area 
                 FROM registros_ad r
                 LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
                 WHERE $where_match LIMIT 1";
@@ -153,6 +153,7 @@ include 'header.php';
     <script src="js/sweetalert2.all.min.js"></script>   
     <script src="js/jspdf.umd.min.js"></script>
     <script src="js/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/xlsx.full.min.js"></script>
     <!-- Fuentes Montserrat para jsPDF -->
     <script src="js/Montserrat-normal.js"></script>
     <script src="js/Montserrat-bold.js"></script>
@@ -165,7 +166,7 @@ include 'header.php';
             --text-color: #374151;
         }
 
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; color: var(--text-color); }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #d6d1ca; margin: 0; padding: 20px; color: var(--text-color); }
         .container { max-width: 1200px; margin: 0 auto; }
         
         .search-input { width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #d1d5db; border-radius: 8px; outline: none; transition: 0.3s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -180,53 +181,60 @@ include 'header.php';
         td { padding: 16px; border-bottom: 1px solid #e5e7eb; font-size: 0.95em; vertical-align: top; }
         tr:hover { background-color: #fdf2f5; }
 
-        .edit-input { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 4px; display: block; }
         .hidden { display: none !important; }
         .col-nombre { font-weight: 600; color: #111827; }
         .col-sec { font-size: 0.85em; color: #6b7280; display: block; }
         .col-dir { color: #374151; font-weight: 500; }
-        .col-user { font-family: monospace; background: #eef2ff; color: #4338ca; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; margin-bottom: 5px;}
-        .action-btn { width: 32px; height: 32px; border-radius: 6px; border: none; background: transparent; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; }
-        .btn-edit:hover { background: #f3f4f6; color: var(--brand-color); }
-        .btn-save { background: #dcfce7; color: #15803d; margin-right: 5px; } 
-        .btn-cancel { background: #fee2e2; color: #b91c1c; }
-
+        
         .pagination { display: flex; justify-content: center; padding: 20px; gap: 5px; }
         .page-link { padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em; transition: 0.2s; }
         .page-link.active { background-color: var(--brand-color); color: white; }
         .page-link.inactive { background-color: white; border: 1px solid #e5e7eb; color: var(--text-color); }
+
+        /* Estilos para inputs dentro de SweetAlert al editar */
+        .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+        .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
     </style>
 </head>
-<body>
-    
-    <div class="bg-white p-4 rounded-xl shadow-md mb-6 flex flex-col lg:flex-row gap-4 items-center justify-between">
+<body class="p-4 sm:p-8 bg-[#d6d1ca] min-h-screen">
+    <div class="max-w-7xl mx-auto space-y-6">
         
-        <form method="GET" action="consultar_usuarios.php" class="relative w-full lg:max-w-md">
-            <svg class="search-icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input type="text" name="q" id="searchInput" value="<?php echo htmlspecialchars($busqueda); ?>" placeholder="Buscar por nombre, usuario, oficio..." class="search-input w-full p-3 border border-gray-300 rounded-full outline-none transition shadow-sm">
-        </form>
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-2">
+            <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
+                <i class="fas fa-users-cog"></i> Usuarios AD
+                <span class="text-xs bg-white/60 text-primary-dark/80 px-3 py-1 rounded-full italic font-semibold"><?php echo $total; ?> registrados</span>
+            </h2>
+        </div>
+        
+        <div class="bg-white p-4 rounded-xl shadow-md flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <form method="GET" action="consultar_usuarios.php" class="relative w-full lg:max-w-md">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" name="q" id="searchInput" value="<?php echo htmlspecialchars($busqueda); ?>" placeholder="Buscar por nombre, usuario, oficio..." class="w-full pl-11 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#721538] outline-none transition shadow-sm">
+            </form>
 
-        <div class="relative w-full lg:w-auto flex justify-end">
-            <button type="button" id="btnOpciones" class="bg-[#721538] hover:bg-[#942f54] text-white font-bold py-3 px-6 rounded-full shadow transition flex items-center gap-2 w-full lg:w-auto justify-center cursor-pointer">
-                <i class="fas fa-bars"></i> Opciones
-            </button>
-
-            <div id="dropdownOpciones" class="hidden absolute top-full mt-2 right-0 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
-                <a href="registro.php" class="block w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors font-medium">
-                    <i class="fas fa-user-plus w-6 text-center text-green-500 mr-2"></i> Registrar Nuevo
-                </a>
-                <button type="button" onclick="generarReportePDF()" class="block w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-red-700 transition-colors font-medium cursor-pointer">
-                    <i class="fas fa-file-pdf w-6 text-center text-red-600 mr-2"></i> Exportar a PDF
+            <div class="relative w-full lg:w-auto flex justify-end">
+                <button type="button" id="btnOpciones" class="bg-[#721538] hover:bg-[#942f54] text-white font-bold py-3 px-6 rounded-full shadow transition flex items-center gap-2 w-full lg:w-auto justify-center cursor-pointer">
+                    <i class="fas fa-bars"></i> Opciones
                 </button>
-                <div class="h-px bg-gray-200 my-1"></div>
-                <a href="dashboard.php" class="block w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors font-medium">
-                    <i class="fas fa-home w-6 text-center text-gray-500 mr-2"></i> Menú Principal
-                </a>
+
+                <div id="dropdownOpciones" class="hidden absolute top-full mt-2 right-0 w-60 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
+                    <a href="registro.php" class="block px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
+                        <i class="fas fa-user-plus w-6 text-center text-green-600 text-base"></i> Registrar Nuevo
+                    </a>
+                    <button type="button" onclick="generarReportePDF()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium cursor-pointer">
+                        <i class="fas fa-file-pdf w-6 text-center text-red-600 text-base"></i> Exportar a PDF
+                    </button>
+                    <button type="button" onclick="exportarExcel()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium cursor-pointer">
+                        <i class="fas fa-file-excel w-6 text-center text-green-600 text-base"></i> Exportar a Excel
+                    </button>
+                    <a href="dashboard.php" class="block px-4 py-3 text-gray-700 hover:bg-gray-100 transition font-medium">
+                        <i class="fas fa-home w-6 text-center text-gray-600 text-base"></i> Menú Principal
+                    </a>
+                </div>
             </div>
         </div>
-    </div>
 
     <div class="card">
         <div class="table-responsive">
@@ -254,85 +262,46 @@ include 'header.php';
                         <td data-label="ID" class="px-6 py-4 text-gray-400 font-mono text-xs">#<?php echo $row['id']; ?></td>
 
                         <td data-label="Personal" class="px-6 py-4">
-                            <div class="view-mode">
-                                <span class="font-bold text-gray-800 block"><?php echo htmlspecialchars($nombreCompleto); ?></span>
-                                <span class="text-xs text-gray-500 block mt-0.5">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></span>
-                                <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></span>
-                            </div>
-                            <div class="edit-mode hidden">
-                                <input type="text" class="edit-input" id="edit_nom_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['nombres']); ?>" placeholder="Nombres">
-                                <div class="flex gap-2">
-                                    <input type="text" class="edit-input" id="edit_pat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_paterno']); ?>" placeholder="A. Pat">
-                                    <input type="text" class="edit-input" id="edit_mat_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['apellido_materno']); ?>" placeholder="A. Mat">
-                                </div>
-                                <input type="text" class="edit-input" id="edit_cargo_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['cargo'] ?? ''); ?>" placeholder="Cargo">
-                            </div>
+                            <span class="font-bold text-gray-800 block"><?php echo htmlspecialchars($nombreCompleto); ?></span>
+                            <span class="text-xs text-gray-500 block mt-0.5">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></span>
+                            <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></span>
                         </td>
 
                         <td data-label="Ubicación" class="px-6 py-4">
-                            <div class="view-mode">
-                                <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
-                                <span class="text-sm font-medium text-primary-dark"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
-                            </div>
-                            <div class="edit-mode hidden">
-                                <select class="edit-input bg-white" id="edit_dir_<?php echo $row['id']; ?>"></select>
-                            </div>
+                            <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
+                            <span class="text-sm font-medium text-primary-dark"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
                         </td>
 
                         <td data-label="Contacto" class="px-6 py-4">
-                            <div class="view-mode">
-                                <div class="text-sm text-gray-700 mb-1"><i class="far fa-envelope text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
-                                <div class="text-sm text-gray-700"><i class="fas fa-phone-alt text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
-                            </div>
-                            <div class="edit-mode hidden">
-                                <input type="text" class="edit-input" id="edit_correo_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['correo_electronico'] ?? ''); ?>" placeholder="Correo">
-                                <input type="text" class="edit-input" id="edit_tel_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['telefono'] ?? ''); ?>" placeholder="Teléfono">
-                            </div>
+                            <div class="text-sm text-gray-700 mb-1"><i class="far fa-envelope text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
+                            <div class="text-sm text-gray-700"><i class="fas fa-phone-alt text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
                         </td>
 
                         <td data-label="Cuenta" class="px-6 py-4">
-                            <div class="view-mode">
-                                <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md font-mono text-sm font-bold border border-indigo-100 inline-block mb-2 shadow-sm">
-                                    <i class="fas fa-user-circle mr-1"></i> <?php echo htmlspecialchars($row['usuario']); ?>
-                                </span>
-                                <div class="text-xs text-gray-500 font-medium mb-1">Oficio: <span class="text-gray-700"><?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></span></div>
-                                
-                                <div class="flex items-center gap-2 text-gray-500 mt-1">
-                                    <i class="fas fa-key text-xs"></i>
-                                    <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly class="bg-transparent border-none w-20 outline-none text-xs font-mono tracking-widest text-gray-700">
-                                    <button onclick="togglePassword(<?php echo $row['id']; ?>)" class="text-gray-400 hover:text-primary-dark transition focus:outline-none p-1">
-                                        <i class="fas fa-eye" id="icon_pass_<?php echo $row['id']; ?>"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="edit-mode hidden">
-                                <input type="text" class="edit-input" id="edit_oficio_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['num_oficio']); ?>" placeholder="No. Oficio">
-                                <input type="text" class="edit-input" id="edit_user_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['usuario']); ?>">
-                                <input type="text" class="edit-input" id="edit_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>">
+                            <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md font-mono text-sm font-bold border border-indigo-100 inline-block mb-2 shadow-sm">
+                                <i class="fas fa-user-circle mr-1"></i> <?php echo htmlspecialchars($row['usuario']); ?>
+                            </span>
+                            <div class="text-xs text-gray-500 font-medium mb-1">Oficio: <span class="text-gray-700"><?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></span></div>
+                            
+                            <div class="flex items-center gap-2 text-gray-500 mt-1">
+                                <i class="fas fa-key text-xs"></i>
+                                <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly class="bg-transparent border-none w-20 outline-none text-xs font-mono tracking-widest text-gray-700">
+                                <button onclick="togglePassword(<?php echo $row['id']; ?>)" class="text-gray-400 hover:text-primary-dark transition focus:outline-none p-1">
+                                    <i class="fas fa-eye" id="icon_pass_<?php echo $row['id']; ?>"></i>
+                                </button>
                             </div>
                         </td>
 
                         <td data-label="Acciones" class="px-6 py-4 text-center whitespace-nowrap">
-                            <div class="view-mode flex justify-center">
-                                <button class="btn-action-sm bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white" onclick="activarEdicion(<?php echo $row['id']; ?>, <?php echo $row['id_direccion'] ?? 0; ?>)" title="Editar Información">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </button>
-                            </div>
-                            <div class="edit-mode hidden flex justify-center sm:justify-center justify-end gap-2">
-                                <button class="btn-action-sm bg-green-100 text-green-700 hover:bg-green-600 hover:text-white" onclick="guardarEdicion(<?php echo $row['id']; ?>)" title="Guardar">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                                <button class="btn-action-sm bg-red-100 text-red-600 hover:bg-red-500 hover:text-white" onclick="cancelarEdicion(<?php echo $row['id']; ?>)" title="Cancelar">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
+                            <button class="w-8 h-8 rounded border border-gray-300 text-gray-500 hover:text-[#721538] hover:border-[#721538] transition flex items-center justify-center mx-auto" onclick="abrirModalEdicion(<?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8'); ?>)" title="Editar Información">
+                                <i class="fas fa-pencil-alt"></i>
+                            </button>
                         </td>
                     </tr>
                 <?php endwhile; endif; ?>
                 </tbody>
             </table>
         </div>
-        
         <?php if($paginas > 1): ?>
         <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-center flex-wrap gap-2">
             <?php 
@@ -345,7 +314,7 @@ include 'header.php';
             }
 
             for($i = $inicio; $i <= $fin; $i++) {
-                $activeClass = ($i == $pagina) ? 'bg-primary-dark text-white border-primary-dark shadow-md' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
+                $activeClass = ($i == $pagina) ? 'bg-[#721538] text-white shadow-md border-primary-dark' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
                 echo '<a href="?p='.$i.'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium '.$activeClass.'">'.$i.'</a>';
             }
 
@@ -356,6 +325,7 @@ include 'header.php';
         </div>
         <?php endif; ?>
     </div>
+</div>
 
 <script>
     const catalogo = <?php echo json_encode($catalogo); ?>;
@@ -383,9 +353,8 @@ include 'header.php';
         }
     });
 
-    // --- EXPORTACIÓN A PDF (Tu función original optimizada) ---
+    // --- EXPORTACIÓN A PDF ---
     async function generarReportePDF() {
-        // Cierra el menú desplegable visualmente
         const dropdown = document.getElementById('dropdownOpciones');
         if (dropdown) dropdown.classList.add('hidden');
 
@@ -447,7 +416,76 @@ include 'header.php';
         }
     }
 
-    // --- FUNCIONES DE EDICIÓN EN LÍNEA ---
+    // --- EXPORTACIÓN A EXCEL ---
+    async function exportarExcel() {
+        const dropdown = document.getElementById('dropdownOpciones');
+        if (dropdown) dropdown.classList.add('hidden');
+
+        const busqueda = document.getElementById('searchInput').value;
+        
+        Swal.fire({ 
+            title: 'Generando Excel...', 
+            text: 'Por favor espere mientras se crea el archivo.',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading() 
+        });
+
+        try {
+            const response = await fetch(`consultar_usuarios.php?ajax_pdf=1&q=${encodeURIComponent(busqueda)}`);
+            const datos = await response.json();
+
+            if(!datos || datos.length === 0) {
+                Swal.fire('Atención', 'No hay datos para exportar con los filtros actuales.', 'info');
+                return;
+            }
+
+            const rows = [
+                ["REPORTE DE USUARIOS AD"],
+                [busqueda ? `Filtro aplicado: "${busqueda}"` : "Todos los usuarios"],
+                [`Fecha de Generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+                [],
+                ["Secretaría", "Dirección / Área", "No. Oficio", "No. Empleado", "Nombre Completo", "Cargo", "Usuario / Cuenta", "Correo Electrónico", "Teléfono"]
+            ];
+
+            datos.forEach(row => {
+                rows.push([
+                    row.nombre_secretaria || 'Sin asignar',
+                    row.nombre_direccion || '---',
+                    row.num_oficio || '---',
+                    row.num_empleado || '---',
+                    row.nombre_completo || '',
+                    row.cargo || 'Sin cargo',
+                    row.usuario || '',
+                    row.correo_electronico || 'Sin correo',
+                    row.telefono || 'Sin tel'
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+
+            ws['!cols'] = [
+                { wch: 30 }, // Secretaría
+                { wch: 35 }, // Dirección
+                { wch: 20 }, // Oficio
+                { wch: 15 }, // Num Empleado
+                { wch: 30 }, // Nombre
+                { wch: 25 }, // Cargo
+                { wch: 20 }, // Usuario
+                { wch: 30 }, // Correo
+                { wch: 15 }  // Teléfono
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws, "Usuarios AD");
+            XLSX.writeFile(wb, `Reporte_Usuarios_AD_${new Date().getTime()}.xlsx`);
+            Swal.close();
+        } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'No se pudo generar el archivo Excel.', 'error');
+        }
+    }
+
+    // --- MOSTRAR / OCULTAR CONTRASEÑA EN TABLA ---
     function togglePassword(id) {
         const input = document.getElementById(`ver_pass_${id}`);
         const icon = document.getElementById(`icon_pass_${id}`);
@@ -463,54 +501,151 @@ include 'header.php';
         }
     }
 
-    function activarEdicion(id, idDireccionActual) {
-        const fila = document.getElementById(`fila_${id}`);
-        fila.querySelectorAll('.view-mode').forEach(el => el.classList.add('hidden'));
-        fila.querySelectorAll('.edit-mode').forEach(el => el.classList.remove('hidden'));
+    // --- MODAL DE EDICIÓN ---
+    function abrirModalEdicion(user) {
+        const idDireccionActual = user.id_direccion || 0;
         
-        const select = document.getElementById(`edit_dir_${id}`);
-        select.innerHTML = ''; 
+        let optionsHtml = '<option value="">-- Seleccionar Dirección --</option>';
         let currentSec = '';
-        let group = null;
         catalogo.forEach(item => {
             if(item.nombre_secretaria !== currentSec) {
+                if (currentSec) {
+                    optionsHtml += `</optgroup>`;
+                }
                 currentSec = item.nombre_secretaria;
-                group = document.createElement('optgroup');
-                group.label = currentSec;
-                select.appendChild(group);
+                optionsHtml += `<optgroup label="${currentSec}">`;
             }
-            let option = document.createElement('option');
-            option.value = item.id_direccion;
-            option.text = item.nombre_direccion;
-            if(item.id_direccion == idDireccionActual) option.selected = true;
-            group.appendChild(option);
+            const selected = item.id_direccion == idDireccionActual ? 'selected' : '';
+            optionsHtml += `<option value="${item.id_direccion}" ${selected}>${item.nombre_direccion}</option>`;
         });
-    }
+        if (currentSec) {
+            optionsHtml += `</optgroup>`;
+        }
 
-    function cancelarEdicion(id) { location.reload(); }
+        let htmlContent = `
+            <div class="text-left mt-4 text-sm max-h-[70vh] overflow-y-auto px-1">
+                <input type="hidden" id="edit-id" value="${user.id || 0}">
 
-    function guardarEdicion(id) {
-        const data = new FormData();
-        data.append('id', id);
-        data.append('id_direccion', document.getElementById(`edit_dir_${id}`).value);
-        data.append('num_oficio', document.getElementById(`edit_oficio_${id}`).value);
-        data.append('nombres', document.getElementById(`edit_nom_${id}`).value);
-        data.append('apellido_paterno', document.getElementById(`edit_pat_${id}`).value);
-        data.append('apellido_materno', document.getElementById(`edit_mat_${id}`).value);
-        data.append('usuario', document.getElementById(`edit_user_${id}`).value);
-        data.append('contrasena', document.getElementById(`edit_pass_${id}`).value);
-        data.append('cargo', document.getElementById(`edit_cargo_${id}`).value);
-        data.append('correo_electronico', document.getElementById(`edit_correo_${id}`).value);
-        data.append('telefono', document.getElementById(`edit_tel_${id}`).value);
+                <div class="mb-3">
+                    <label class="swal-field-label">Nombres</label>
+                    <input id="edit-nombres" class="swal-custom-input" value="${user.nombres || ''}">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="swal-field-label">Primer Apellido</label>
+                        <input id="edit-pat" class="swal-custom-input" value="${user.apellido_paterno || ''}">
+                    </div>
+                    <div>
+                        <label class="swal-field-label">Segundo Apellido</label>
+                        <input id="edit-mat" class="swal-custom-input" value="${user.apellido_materno || ''}">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="swal-field-label">Número de Empleado</label>
+                        <input id="edit-num-emp" class="swal-custom-input" value="${user.num_empleado || ''}">
+                    </div>
+                    <div>
+                        <label class="swal-field-label">Cargo</label>
+                        <input id="edit-cargo" class="swal-custom-input" value="${user.cargo || ''}">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="swal-field-label">Dirección / Área</label>
+                    <select id="edit-dir" class="swal-custom-input bg-white">${optionsHtml}</select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="swal-field-label">Correo Electrónico</label>
+                        <input id="edit-correo" class="swal-custom-input" value="${user.correo_electronico || ''}">
+                    </div>
+                    <div>
+                        <label class="swal-field-label">Teléfono</label>
+                        <input id="edit-tel" class="swal-custom-input" value="${user.telefono || ''}">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="swal-field-label">Número de Oficio</label>
+                    <input id="edit-oficio" class="swal-custom-input" value="${user.num_oficio || ''}">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-1">
+                    <div>
+                        <label class="swal-field-label">Usuario / Cuenta</label>
+                        <input id="edit-user" class="swal-custom-input" value="${user.usuario || ''}">
+                    </div>
+                    <div>
+                        <label class="swal-field-label">Contraseña</label>
+                        <input id="edit-pass" class="swal-custom-input" value="${user.contrasena || ''}">
+                    </div>
+                </div>
+            </div>
+        `;
 
-        Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
-        fetch('actualizar_usuario.php', { method: 'POST', body: data })
-        .then(r => r.json())
-        .then(d => {
-            if(d.success) {
-                Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 1000, showConfirmButton: false }).then(() => location.reload());
-            } else {
-                Swal.fire('Error', d.message, 'error');
+        Swal.fire({
+            title: `<div class="text-xl font-bold border-b pb-2"><i class="fas fa-user-edit text-[#721538] mr-1"></i> Editar Usuario</div>`,
+            html: htmlContent,
+            width: '600px',
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar',
+            confirmButtonText: '<i class="fas fa-save mr-1"></i> Guardar Cambios',
+            confirmButtonColor: '#721538',
+            preConfirm: () => {
+                const nombres = document.getElementById('edit-nombres').value.trim();
+                const id_direccion = document.getElementById('edit-dir').value;
+                const usuario = document.getElementById('edit-user').value.trim();
+
+                if (!nombres) {
+                    Swal.showValidationMessage('El campo Nombres es obligatorio.');
+                    return false;
+                }
+                if (!id_direccion) {
+                    Swal.showValidationMessage('Debe seleccionar una Dirección / Área.');
+                    return false;
+                }
+                if (!usuario) {
+                    Swal.showValidationMessage('El campo Usuario / Cuenta es obligatorio.');
+                    return false;
+                }
+
+                return {
+                    id: document.getElementById('edit-id').value,
+                    id_direccion: id_direccion,
+                    num_oficio: document.getElementById('edit-oficio').value.trim(),
+                    nombres: nombres,
+                    apellido_paterno: document.getElementById('edit-pat').value.trim(),
+                    apellido_materno: document.getElementById('edit-mat').value.trim(),
+                    usuario: usuario,
+                    contrasena: document.getElementById('edit-pass').value.trim(),
+                    cargo: document.getElementById('edit-cargo').value.trim(),
+                    correo_electronico: document.getElementById('edit-correo').value.trim(),
+                    telefono: document.getElementById('edit-tel').value.trim(),
+                    num_empleado: document.getElementById('edit-num-emp').value.trim()
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const data = new FormData();
+                for (let key in result.value) {
+                    data.append(key, result.value[key]);
+                }
+                
+                Swal.fire({ title: 'Guardando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                fetch('actualizar_usuario.php', { method: 'POST', body: data })
+                    .then(r => r.json())
+                    .then(d => {
+                        if(d.success) {
+                            Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 1200, showConfirmButton: false }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', d.message, 'error');
+                        }
+                    })
+                    .catch(() => Swal.fire('Error', 'No se pudo guardar la información. Verifica tu conexión.', 'error'));
             }
         });
     }
