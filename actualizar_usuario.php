@@ -22,6 +22,7 @@ $ap_mat = $_POST['apellido_materno'] ?? '';
 $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
 $cargo = $_POST['cargo'] ?? '';
+$jefe_inmediato = $_POST['jefe_inmediato'] ?? '';
 $correo = $_POST['correo_electronico'] ?? '';
 $telefono = $_POST['telefono'] ?? '';
 $num_empleado = $_POST['num_empleado'] ?? '';
@@ -42,6 +43,7 @@ $sql = "UPDATE registros_ad SET
             usuario = ?, 
             contrasena = ?,
             cargo = ?,
+            jefe_inmediato = ?,
             correo_electronico = ?,
             telefono = ?,
             num_empleado = ?
@@ -50,8 +52,8 @@ $sql = "UPDATE registros_ad SET
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // i (int), s (string) x 10, i (int)
-    $stmt->bind_param("issssssssssi", 
+    // i (int), s (string) x 11, i (int)
+    $stmt->bind_param("isssssssssssi", 
         $id_direccion, 
         $num_oficio, 
         $nombres, 
@@ -60,6 +62,7 @@ if ($stmt) {
         $usuario, 
         $contrasena,
         $cargo,
+        $jefe_inmediato,
         $correo,
         $telefono,
         $num_empleado,

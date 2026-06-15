@@ -878,6 +878,7 @@ if (isset($_GET['ajax'])) {
                         cargo: userDetail.cargo || '_______________________________',
                         num_empleado: userDetail.num_empleado || '_______________________________',
                         area: userDetail.nombre_direccion || userDetail.area || groups[respName][0].nombre_ubicacion || '_______________________________',
+                        jefe_inmediato: userDetail.jefe_inmediato || '_______________________________',
                         correo: userDetail.correo_electronico || userDetail.correo || '_______________________________',
                         telefono: userDetail.telefono || '_______________________________'
                     };
@@ -979,6 +980,7 @@ if (isset($_GET['ajax'])) {
         let correo = datosResponsableActual ? datosResponsableActual.correo : '';
         let cargo = datosResponsableActual ? datosResponsableActual.cargo : '';
         let telefono = datosResponsableActual ? datosResponsableActual.telefono : '';
+        let jefe_inmediato = datosResponsableActual ? (datosResponsableActual.jefe_inmediato || '') : '';
 
         // Recolectar datos de los equipos seleccionados
         if (!ubicacion) {
@@ -1002,6 +1004,9 @@ if (isset($_GET['ajax'])) {
                     
                     <label class="swal-field-label">Área o Departamento</label>
                     <input id="resg-area" class="swal-custom-input" value="${ubicacion || ''}">
+
+                    <label class="swal-field-label">Jefe Inmediato</label>
+                    <input id="resg-jefe" class="swal-custom-input" placeholder="Ej. Juan Pérez" value="${jefe_inmediato || ''}">
                     
                     <label class="swal-field-label">Correo Electrónico</label>
                     <input id="resg-correo" class="swal-custom-input" placeholder="Ej. correo@ejemplo.com" value="${correo || ''}">
@@ -1021,6 +1026,7 @@ if (isset($_GET['ajax'])) {
                     cargo: document.getElementById('resg-cargo').value || '_______________________________',
                     num_empleado: document.getElementById('resg-num-emp').value || '_______________________________',
                     area: document.getElementById('resg-area').value || '_______________________________',
+                    jefe_inmediato: document.getElementById('resg-jefe').value || '_______________________________',
                     correo: document.getElementById('resg-correo').value || '_______________________________',
                     telefono: document.getElementById('resg-telefono').value || '_______________________________'
                 }
@@ -1081,7 +1087,7 @@ if (isset($_GET['ajax'])) {
                 body: [
                     ['Unidad de adscripcion', 'Hacienda del Estado de Quintana Roo / SATQ'],
                     ['Ubicacion', limpiarTexto(datosTrabajador.area)],
-                    ['Jefe inmediato', '_______________________________'],
+                    ['Jefe inmediato', limpiarTexto(datosTrabajador.jefe_inmediato || '_______________________________')],
                     ['Fecha de elaboracion', fechaActual]
                 ],
                 theme: 'grid',
@@ -1667,6 +1673,9 @@ if (isset($_GET['ajax'])) {
                         <label class="swal-field-label">Cargo</label>
                         <input id="usr-cargo" class="swal-custom-input" value="${details.cargo || ''}" ${esAdmin ? '' : 'readonly'}>
 
+                        <label class="swal-field-label">Jefe Inmediato</label>
+                        <input id="usr-jefe" class="swal-custom-input" value="${details.jefe_inmediato || ''}" ${esAdmin ? '' : 'readonly'}>
+
                         <label class="swal-field-label">Área o Departamento</label>
                         <input class="swal-custom-input bg-gray-50 text-gray-500 cursor-not-allowed" value="${details.area || 'Sin asignar'}" readonly>
 
@@ -1703,6 +1712,7 @@ if (isset($_GET['ajax'])) {
                             usuario: document.getElementById('usr-usuario').value,
                             contrasena: document.getElementById('usr-pass').value,
                             cargo: document.getElementById('usr-cargo').value,
+                            jefe_inmediato: document.getElementById('usr-jefe').value,
                             correo_electronico: document.getElementById('usr-correo').value,
                             telefono: document.getElementById('usr-telefono').value
                         }

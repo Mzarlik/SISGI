@@ -38,7 +38,7 @@ if (isset($_GET['ajax_details'])) {
         }
         $where_match = implode(' AND ', $condiciones);
 
-        $sql = "SELECT r.id, r.nombres, r.apellido_paterno, r.apellido_materno, r.usuario, r.contrasena, r.num_oficio, r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, r.id_direccion, d.nombre_direccion as area 
+        $sql = "SELECT r.id, r.nombres, r.apellido_paterno, r.apellido_materno, r.usuario, r.contrasena, r.num_oficio, r.num_empleado, r.correo_electronico as correo, r.telefono, r.cargo, r.id_direccion, r.jefe_inmediato, d.nombre_direccion as area 
                 FROM registros_ad r
                 LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
                 WHERE $where_match LIMIT 1";
@@ -67,7 +67,7 @@ if (isset($_GET['ajax_pdf'])) {
     }
 
     $sql = "SELECT r.num_oficio, 
-                   r.nombres, r.apellido_paterno, r.apellido_materno, r.num_empleado,
+                   r.nombres, r.apellido_paterno, r.apellido_materno, r.num_empleado, r.jefe_inmediato,
                    TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_completo,
                    TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) as nombre_natural,
                    r.usuario, r.cargo, r.correo_electronico, r.telefono,
@@ -431,6 +431,7 @@ include 'header.php';
             const telText = row.telefono || '---';
             const cargoText = row.cargo || '---';
             const numOficio = row.num_oficio || '---';
+            const jefeText = row.jefe_inmediato || '---';
 
             html += `
                 <tr id="fila_${row.id}" class="table-row-hover transition-colors duration-150">
@@ -439,6 +440,7 @@ include 'header.php';
                     <td data-label="Personal" class="px-6 py-4">
                         <span class="font-bold text-gray-800 block">${nombreCompleto}</span>
                         <span class="text-xs text-gray-500 block mt-0.5">Cargo: ${cargoText}</span>
+                        <span class="text-xs text-gray-500 block mt-0.5">Jefe Inmediato: ${jefeText}</span>
                         <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: ${row.num_empleado || '---'}</span>
                     </td>
 
@@ -832,6 +834,11 @@ include 'header.php';
                     <select id="edit-dir" class="swal-custom-input bg-white">${optionsHtml}</select>
                 </div>
                 
+                <div class="mb-3">
+                    <label class="swal-field-label">Jefe Inmediato</label>
+                    <input id="edit-jefe" class="swal-custom-input" value="${user.jefe_inmediato || ''}">
+                </div>
+                
                 <div class="grid grid-cols-2 gap-3 mb-3">
                     <div>
                         <label class="swal-field-label">Correo Electrónico</label>
@@ -897,6 +904,7 @@ include 'header.php';
                     usuario: usuario,
                     contrasena: document.getElementById('edit-pass').value.trim(),
                     cargo: document.getElementById('edit-cargo').value.trim(),
+                    jefe_inmediato: document.getElementById('edit-jefe').value.trim(),
                     correo_electronico: document.getElementById('edit-correo').value.trim(),
                     telefono: document.getElementById('edit-tel').value.trim(),
                     num_empleado: document.getElementById('edit-num-emp').value.trim()
