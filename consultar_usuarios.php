@@ -67,6 +67,7 @@ if (isset($_GET['ajax_pdf'])) {
     }
 
     $sql = "SELECT r.num_oficio, 
+                   r.nombres, r.apellido_paterno, r.apellido_materno, r.num_empleado,
                    TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_completo,
                    TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) as nombre_natural,
                    r.usuario, r.cargo, r.correo_electronico, r.telefono,
@@ -86,6 +87,69 @@ if (isset($_GET['ajax_pdf'])) {
         }
     }
     echo json_encode($data);
+    $conn->close();
+    exit;
+}
+
+// ==========================================
+// BACKEND: RESPUESTA AJAX (JSON)
+// ==========================================
+if (isset($_GET['ajax'])) {
+    header('Content-Type: application/json');
+
+    $busqueda = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
+    $pagina = isset($_GET['p']) && is_numeric($_GET['p']) ? (int)$_GET['p'] : 1;
+    $limite = 10;
+    $offset = ($pagina - 1) * $limite;
+
+    $where = "WHERE 1=1";
+    if($busqueda) {
+        $where .= " AND (r.nombres LIKE '%$busqueda%' 
+                    OR r.apellido_paterno LIKE '%$busqueda%'
+                    OR r.apellido_materno LIKE '%$busqueda%'
+                    OR r.usuario LIKE '%$busqueda%' 
+                    OR r.num_empleado LIKE '%$busqueda%' 
+                    OR r.num_oficio LIKE '%$busqueda%' 
+                    OR r.cargo LIKE '%$busqueda%'
+                    OR r.correo_electronico LIKE '%$busqueda%'
+                    OR s.nombres LIKE '%$busqueda%' 
+                    OR d.nombre_direccion LIKE '%$busqueda%')"; 
+    }
+
+    $sqlTotal = "SELECT COUNT(*) as total 
+                 FROM registros_ad r 
+                 LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+                 LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
+                 $where";
+    $resTotal = $conn->query($sqlTotal);
+    $total = $resTotal ? $resTotal->fetch_assoc()['total'] : 0;
+    $paginas = ceil($total / $limite);
+
+    $sql = "SELECT r.*, 
+                   d.nombre_direccion, 
+                   s.nombres as nombre_secretaria 
+            FROM registros_ad r
+            LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+            LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
+            $where
+            ORDER BY r.id DESC LIMIT $offset, $limite";
+
+    $res = $conn->query($sql);
+    $datos = [];
+    if ($res) {
+        while($row = $res->fetch_assoc()) {
+            $datos[] = $row;
+        }
+    }
+
+    echo json_encode([
+        'data' => $datos,
+        'meta' => [
+            'pagina_actual' => $pagina,
+            'total_paginas' => $paginas,
+            'total_registros' => $total
+        ]
+    ]);
     $conn->close();
     exit;
 }
@@ -200,17 +264,23 @@ include 'header.php';
         <div class="flex flex-col sm:flex-row justify-between items-center mb-2">
             <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
                 <i class="fas fa-users-cog"></i> Usuarios SATQ
-                <span class="text-xs bg-white/60 text-primary-dark/80 px-3 py-1 rounded-full italic font-semibold"><?php echo $total; ?> registrados</span>
+                <span id="total-lbl" class="text-xs bg-white/60 text-primary-dark/80 px-3 py-1 rounded-full italic font-semibold">Cargando...</span>
             </h2>
+            <div id="loading" style="display:none;" class="animate-pulse text-primary-dark font-bold">
+                <i class="fas fa-spinner fa-spin"></i> Cargando...
+            </div>
         </div>
         
         <div class="bg-white p-4 rounded-xl shadow-md flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <form method="GET" action="consultar_usuarios.php" class="relative w-full lg:max-w-md">
+            <div class="relative w-full lg:max-w-md">
                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                     <i class="fas fa-search"></i>
                 </span>
-                <input type="text" name="q" id="searchInput" value="<?php echo htmlspecialchars($busqueda); ?>" placeholder="Buscar por nombre, usuario, oficio..." class="w-full pl-11 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#721538] outline-none transition shadow-sm">
-            </form>
+                <input type="text" id="searchInput" placeholder="Buscar por nombre, usuario, cargo..." class="w-full pl-11 pr-10 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#721538] outline-none transition shadow-sm">
+                <button id="clearSearch" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
 
             <div class="relative w-full lg:w-auto flex justify-end">
                 <button type="button" id="btnOpciones" class="bg-[#721538] hover:bg-[#942f54] text-white font-bold py-3 px-6 rounded-full shadow transition flex items-center gap-2 w-full lg:w-auto justify-center cursor-pointer">
@@ -234,103 +304,67 @@ include 'header.php';
             </div>
         </div>
 
-    <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 relative z-0">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-primary-dark text-white text-xs font-bold uppercase tracking-wider">
-                    <tr>
-                        <th width="5%" class="px-6 py-4">ID</th>
-                        <th width="25%" class="px-6 py-4">Nombre y Cargo</th>
-                        <th width="25%" class="px-6 py-4">Ubicación</th>
-                        <th width="20%" class="px-6 py-4">Contacto</th>
-                        <th width="15%" class="px-6 py-4">Cuenta / Oficio</th>
-                        <th width="10%" class="px-6 py-4 text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 text-sm text-gray-700 bg-white">
-                <?php if(!$res || $res->num_rows == 0): ?>
-                        <tr><td colspan="6" style="text-align:center; padding: 40px; color:#9ca3af;">No se encontraron resultados</td></tr>
-                    <?php endif; ?>
-
-                <?php if($res): while($row = $res->fetch_assoc()): 
-                        $nombreCompleto = trim(preg_replace('/\s+/', ' ', $row['nombres'] . ' ' . $row['apellido_paterno'] . ' ' . $row['apellido_materno']));
-                        $passVal = $row['contrasena'] ?? $row['password'] ?? '';
-                    ?>
-                    <tr id="fila_<?php echo $row['id']; ?>" class="table-row-hover transition-colors duration-150">
-                        <td data-label="ID" class="px-6 py-4 text-gray-400 font-mono text-xs">#<?php echo $row['id']; ?></td>
-
-                        <td data-label="Personal" class="px-6 py-4">
-                            <span class="font-bold text-gray-800 block"><?php echo htmlspecialchars($nombreCompleto); ?></span>
-                            <span class="text-xs text-gray-500 block mt-0.5">Cargo: <?php echo htmlspecialchars($row['cargo'] ?? '---'); ?></span>
-                            <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: <?php echo htmlspecialchars($row['num_empleado']); ?></span>
-                        </td>
-
-                        <td data-label="Ubicación" class="px-6 py-4">
-                            <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1"><?php echo htmlspecialchars($row['nombre_secretaria'] ?? 'Sin asignar'); ?></span>
-                            <span class="text-sm font-medium text-primary-dark"><?php echo htmlspecialchars($row['nombre_direccion'] ?? '---'); ?></span>
-                        </td>
-
-                        <td data-label="Contacto" class="px-6 py-4">
-                            <div class="text-sm text-gray-700 mb-1"><i class="far fa-envelope text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['correo_electronico'] ?? '---'); ?></div>
-                            <div class="text-sm text-gray-700"><i class="fas fa-phone-alt text-gray-400 mr-1"></i> <?php echo htmlspecialchars($row['telefono'] ?? '---'); ?></div>
-                        </td>
-
-                        <td data-label="Cuenta" class="px-6 py-4">
-                            <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md font-mono text-sm font-bold border border-indigo-100 inline-block mb-2 shadow-sm">
-                                <i class="fas fa-user-circle mr-1"></i> <?php echo htmlspecialchars($row['usuario']); ?>
-                            </span>
-                            <div class="text-xs text-gray-500 font-medium mb-1">Oficio: <span class="text-gray-700"><?php echo htmlspecialchars($row['num_oficio'] ?? '---'); ?></span></div>
-                            
-                            <div class="flex items-center gap-2 text-gray-500 mt-1">
-                                <i class="fas fa-key text-xs"></i>
-                                <input type="password" id="ver_pass_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($passVal); ?>" readonly class="bg-transparent border-none w-20 outline-none text-xs font-mono tracking-widest text-gray-700">
-                                <button onclick="togglePassword(<?php echo $row['id']; ?>)" class="text-gray-400 hover:text-primary-dark transition focus:outline-none p-1">
-                                    <i class="fas fa-eye" id="icon_pass_<?php echo $row['id']; ?>"></i>
-                                </button>
-                            </div>
-                        </td>
-
-                        <td data-label="Acciones" class="px-6 py-4 text-center whitespace-nowrap">
-                            <button class="w-8 h-8 rounded border border-gray-300 text-gray-500 hover:text-[#721538] hover:border-[#721538] transition flex items-center justify-center mx-auto" onclick="abrirModalEdicion(<?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8'); ?>)" title="Editar Información">
-                                <i class="fas fa-pencil-alt"></i>
-                            </button>
-                        </td>
-                    </tr>
-                <?php endwhile; endif; ?>
-                </tbody>
-            </table>
-        </div>
-        
-        <?php if($paginas > 1): ?>
-        <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-center flex-wrap gap-2">
-            <?php 
-            $rango = 2;
-            $inicio = max(1, $pagina - $rango);
-            $fin = min($paginas, $pagina + $rango);
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 relative z-0">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-primary-dark text-white text-xs font-bold uppercase tracking-wider">
+                        <tr>
+                            <th width="5%" class="px-6 py-4">ID</th>
+                            <th width="25%" class="px-6 py-4">Nombre y Cargo</th>
+                            <th width="25%" class="px-6 py-4">Ubicación</th>
+                            <th width="20%" class="px-6 py-4">Contacto</th>
+                            <th width="15%" class="px-6 py-4">Cuenta / Oficio</th>
+                            <th width="10%" class="px-6 py-4 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-usuarios-body" class="divide-y divide-gray-100 text-sm text-gray-700 bg-white">
+                        <tr><td colspan="6" style="text-align:center; padding: 40px; color:#9ca3af;">Cargando usuarios...</td></tr>
+                    </tbody>
+                </table>
+            </div>
             
-            if ($pagina > 1) {
-                echo '<a href="?p='.($pagina-1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-primary-dark transition-all"><i class="fas fa-chevron-left text-xs"></i></a>';
-            }
-
-            for($i = $inicio; $i <= $fin; $i++) {
-                $activeClass = ($i == $pagina) ? 'bg-primary-dark text-white shadow-md border-primary-dark scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:text-primary-dark';
-                echo '<a href="?p='.$i.'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium '.$activeClass.'">'.$i.'</a>';
-            }
-
-            if ($pagina < $paginas) {
-                echo '<a href="?p='.($pagina+1).'&q='.urlencode($busqueda).'" class="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-primary-dark transition-all"><i class="fas fa-chevron-right text-xs"></i></a>';
-            }
-            ?>
+            <div id="paginacion-container" class="p-4 bg-gray-50 border-t border-gray-200 flex justify-center flex-wrap gap-2 hidden"></div>
         </div>
-        <?php endif; ?>
     </div>
-</div>
 
 <script>
     const catalogo = <?php echo json_encode($catalogo); ?>;
+    let paginaActual = 1;
+    let terminoBusqueda = '';
+    let datosActuales = [];
+    let timeoutBusqueda = null;
 
-    // --- MANEJO DEL MENÚ DESPLEGABLE ---
+    // --- MANEJO DEL MENÚ DESPLEGABLE Y BÚSQUEDA ---
     document.addEventListener('DOMContentLoaded', () => {
+        cargarDatos();
+
+        // Listener para búsqueda de texto con debounce de 300ms
+        const searchInput = document.getElementById('searchInput');
+        const clearBtn = document.getElementById('clearSearch');
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(timeoutBusqueda);
+            terminoBusqueda = e.target.value;
+            paginaActual = 1;
+            
+            if (terminoBusqueda) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
+            timeoutBusqueda = setTimeout(() => { cargarDatos(); }, 300);
+        });
+
+        // Listener para el botón limpiar
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            terminoBusqueda = '';
+            paginaActual = 1;
+            clearBtn.classList.add('hidden');
+            cargarDatos();
+        });
+
         const btnOpciones = document.getElementById('btnOpciones');
         const dropdownOpciones = document.getElementById('dropdownOpciones');
 
@@ -351,6 +385,161 @@ include 'header.php';
             }
         }
     });
+
+    // --- CARGAR DATOS EN TIEMPO REAL (AJAX) ---
+    function cargarDatos() {
+        document.getElementById('loading').style.display = 'block';
+        const url = `consultar_usuarios.php?ajax=1&q=${encodeURIComponent(terminoBusqueda)}&p=${paginaActual}`;
+        
+        fetch(url)
+            .then(res => res.json())
+            .then(res => {
+                datosActuales = res.data;
+                renderizarTabla(res.data);
+                renderizarPaginacion(res.meta);
+                document.getElementById('total-lbl').innerText = `${res.meta.total_registros} registrados`;
+            })
+            .catch(err => {
+                console.error("Error al cargar usuarios:", err);
+                document.getElementById('tabla-usuarios-body').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-8 text-red-500 font-medium">Error al cargar la información. Reintente por favor.</td></tr>
+                `;
+            })
+            .finally(() => {
+                document.getElementById('loading').style.display = 'none';
+            });
+    }
+
+    function renderizarTabla(datos) {
+        const tbody = document.getElementById('tabla-usuarios-body');
+        if (!tbody) return;
+
+        if (!datos || datos.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="6" class="text-center py-10 text-gray-400">No se encontraron resultados</td></tr>
+            `;
+            return;
+        }
+
+        let html = '';
+        datos.forEach(row => {
+            const nombreCompleto = `${row.nombres || ''} ${row.apellido_paterno || ''} ${row.apellido_materno || ''}`.replace(/\s+/g, ' ').trim();
+            const passVal = row.contrasena || '';
+            const secText = row.nombre_secretaria || 'Sin asignar';
+            const dirText = row.nombre_direccion || '---';
+            const correoText = row.correo_electronico || '---';
+            const telText = row.telefono || '---';
+            const cargoText = row.cargo || '---';
+            const numOficio = row.num_oficio || '---';
+
+            html += `
+                <tr id="fila_${row.id}" class="table-row-hover transition-colors duration-150">
+                    <td data-label="ID" class="px-6 py-4 text-gray-400 font-mono text-xs">#${row.id}</td>
+
+                    <td data-label="Personal" class="px-6 py-4">
+                        <span class="font-bold text-gray-800 block">${nombreCompleto}</span>
+                        <span class="text-xs text-gray-500 block mt-0.5">Cargo: ${cargoText}</span>
+                        <span class="text-xs text-gray-400 block mt-0.5">Num. Empleado: ${row.num_empleado || '---'}</span>
+                    </td>
+
+                    <td data-label="Ubicación" class="px-6 py-4">
+                        <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1">${secText}</span>
+                        <span class="text-sm font-medium text-primary-dark">${dirText}</span>
+                    </td>
+
+                    <td data-label="Contacto" class="px-6 py-4">
+                        <div class="text-sm text-gray-700 mb-1"><i class="far fa-envelope text-gray-400 mr-1"></i> ${correoText}</div>
+                        <div class="text-sm text-gray-700"><i class="fas fa-phone-alt text-gray-400 mr-1"></i> ${telText}</div>
+                    </td>
+
+                    <td data-label="Cuenta" class="px-6 py-4">
+                        <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md font-mono text-sm font-bold border border-indigo-100 inline-block mb-2 shadow-sm">
+                            <i class="fas fa-user-circle mr-1"></i> ${row.usuario || ''}
+                        </span>
+                        <div class="text-xs text-gray-500 font-medium mb-1">Oficio: <span class="text-gray-700">${numOficio}</span></div>
+                        
+                        <div class="flex items-center gap-2 text-gray-500 mt-1">
+                            <i class="fas fa-key text-xs"></i>
+                            <input type="password" id="ver_pass_${row.id}" value="${passVal}" readonly class="bg-transparent border-none w-20 outline-none text-xs font-mono tracking-widest text-gray-700">
+                            <button onclick="togglePassword(${row.id})" class="text-gray-400 hover:text-primary-dark transition focus:outline-none p-1" type="button">
+                                <i class="fas fa-eye" id="icon_pass_${row.id}"></i>
+                            </button>
+                        </div>
+                    </td>
+
+                    <td data-label="Acciones" class="px-6 py-4 text-center whitespace-nowrap">
+                        <button class="w-8 h-8 rounded border border-gray-300 text-gray-500 hover:text-[#721538] hover:border-[#721538] transition flex items-center justify-center mx-auto cursor-pointer" onclick="abrirModalEdicionPorId(${row.id})" title="Editar Información" type="button">
+                            <i class="fas fa-pencil-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderizarPaginacion(meta) {
+        const divPaginacion = document.getElementById('paginacion-container');
+        if (!divPaginacion) return;
+
+        if (!meta || meta.total_registros == 0 || meta.total_paginas <= 1) {
+            divPaginacion.innerHTML = '';
+            divPaginacion.classList.add('hidden');
+            return;
+        }
+
+        divPaginacion.classList.remove('hidden');
+        divPaginacion.innerHTML = '';
+
+        const crearBoton = (texto, pagina, activo = false, deshabilitado = false) => {
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.innerHTML = texto;
+            btn.disabled = deshabilitado;
+
+            let clases = "w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium ";
+            if (activo) {
+                clases += "bg-[#721538] text-white shadow-md border-[#721538] scale-105 cursor-default";
+            } else if (deshabilitado) {
+                clases += "bg-transparent text-gray-400 border-transparent cursor-default";
+            } else {
+                clases += "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:text-primary-dark cursor-pointer";
+            }
+            btn.className = clases;
+
+            if (!deshabilitado && !activo) {
+                btn.onclick = () => { paginaActual = pagina; cargarDatos(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+            }
+            return btn;
+        };
+
+        const total = meta.total_paginas;
+        const actual = meta.pagina_actual;
+        const rango = 2;
+
+        if (actual > 1) { 
+            divPaginacion.appendChild(crearBoton('<i class="fas fa-chevron-left text-xs"></i>', actual - 1)); 
+        }
+        
+        for (let i = 1; i <= total; i++) {
+            if (i === 1 || i === total || (i >= actual - rango && i <= actual + rango)) {
+                divPaginacion.appendChild(crearBoton(i, i, i === actual));
+            } else if (i === actual - rango - 1 || i === actual + rango + 1) {
+                divPaginacion.appendChild(crearBoton('...', null, false, true));
+            }
+        }
+        
+        if (actual < total) { 
+            divPaginacion.appendChild(crearBoton('<i class="fas fa-chevron-right text-xs"></i>', actual + 1)); 
+        }
+    }
+
+    function abrirModalEdicionPorId(id) {
+        const user = datosActuales.find(u => Number(u.id) === Number(id));
+        if (user) {
+            abrirModalEdicion(user);
+        }
+    }
 
     // --- EXPORTACIÓN A PDF ---
     async function generarReportePDF() {

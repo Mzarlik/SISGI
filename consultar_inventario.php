@@ -745,6 +745,56 @@ if (isset($_GET['ajax'])) {
         window.location.href = `generar_traspaso.php?equipos=${ids.join(',')}`;
     }
 
+    function namesMatch(userDetail, targetName) {
+        if (!userDetail || !targetName) return false;
+        const normalize = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9\s]/g, "");
+        const targetWords = normalize(targetName).split(/\s+/).filter(w => w.length > 0);
+        const userFullName = `${userDetail.nombres || ''} ${userDetail.apellido_paterno || ''} ${userDetail.apellido_materno || ''}`;
+        const userWords = normalize(userFullName).split(/\s+/).filter(w => w.length > 0);
+        return targetWords.length === userWords.length && targetWords.every(word => userWords.includes(word));
+    }
+
+    function findUserInList(targetName, usersList) {
+        if (!targetName) return null;
+        
+        const normalize = (str) => {
+            return str.normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .toLowerCase()
+                      .trim()
+                      .replace(/[^a-z0-9\s]/g, "");
+        };
+
+        const targetNormalized = normalize(targetName);
+        const targetWords = targetNormalized.split(/\s+/).filter(w => w.length > 0);
+        
+        if (targetWords.length === 0) return null;
+
+        // Intentar coincidencia exacta de todas las palabras
+        for (const u of usersList) {
+            const userFullName = `${u.nombres || ''} ${u.apellido_paterno || ''} ${u.apellido_materno || ''}`;
+            const userNormalized = normalize(userFullName);
+            const userWords = userNormalized.split(/\s+/).filter(w => w.length > 0);
+
+            if (targetWords.length === userWords.length) {
+                const allMatch = targetWords.every(word => userWords.includes(word));
+                if (allMatch) return u;
+            }
+        }
+        
+        // Fallback: coincidencia parcial (si todas las palabras de búsqueda están en el nombre del usuario)
+        for (const u of usersList) {
+            const userFullName = `${u.nombres || ''} ${u.apellido_paterno || ''} ${u.apellido_materno || ''}`;
+            const userNormalized = normalize(userFullName);
+            const userWords = userNormalized.split(/\s+/).filter(w => w.length > 0);
+
+            const allMatch = targetWords.every(word => userWords.includes(word));
+            if (allMatch) return u;
+        }
+
+        return null;
+    }
+
     async function iniciarResguardo() {
         const statusFilterVal = document.getElementById('statusFilter').value;
         const filtroPersonal = document.getElementById('userFilter').value;
@@ -760,7 +810,6 @@ if (isset($_GET['ajax'])) {
                 return;
             }
 
-            // Confirmación de la operación masiva
             const confirmBatch = await Swal.fire({
                 title: '¿Generar todos los resguardos?',
                 text: 'Se descargará un archivo ZIP con los resguardos en formato PDF agrupados individualmente por cada responsable.',
@@ -784,12 +833,6 @@ if (isset($_GET['ajax'])) {
                 // 1. Obtener detalles de todos los usuarios
                 const resUsers = await fetch('consultar_usuarios.php?ajax_pdf=1');
                 const usersData = await resUsers.json();
-                const userMap = new Map();
-                usersData.forEach(u => {
-                    if (u.nombre_completo) {
-                        userMap.set(u.nombre_completo.trim().toLowerCase(), u);
-                    }
-                });
 
                 // 2. Obtener todos los equipos asignados activos
                 const resInv = await fetch('consultar_inventario.php?ajax=1&all=1&s=ASIGNADO');
@@ -829,7 +872,7 @@ if (isset($_GET['ajax'])) {
                 let generatedCount = 0;
                 
                 const promises = responsblesList.map(async (respName) => {
-                    const userDetail = userMap.get(respName.toLowerCase()) || {};
+                    const userDetail = findUserInList(respName, usersData) || {};
                     const datosTrabajador = {
                         nombre: respName,
                         cargo: userDetail.cargo || '_______________________________',
@@ -886,7 +929,7 @@ if (isset($_GET['ajax'])) {
                 if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
             });
 
-            if (responsable && (!datosResponsableActual || filtroPersonal !== responsable)) {
+            if (responsable && (!datosResponsableActual || !namesMatch(datosResponsableActual, responsable))) {
                 Swal.fire({ title: 'Obteniendo datos del responsable...', didOpen: () => Swal.showLoading() });
                 fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(responsable)}`)
                     .then(res => res.json())
@@ -904,8 +947,15 @@ if (isset($_GET['ajax'])) {
             }
         } else {
             // Filtro por responsable seleccionado
-            Swal.fire({ title: 'Obteniendo equipos...', didOpen: () => Swal.showLoading() });
-            fetch(`consultar_inventario.php?ajax=1&all=1&u=${encodeURIComponent(filtroPersonal)}&s=${encodeURIComponent(statusFilterVal)}`)
+            Swal.fire({ title: 'Obteniendo datos...', didOpen: () => Swal.showLoading() });
+            
+            // Primero aseguramos tener los datos del responsable
+            fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(filtroPersonal)}`)
+                .then(res => res.json())
+                .then(userData => {
+                    datosResponsableActual = userData.found ? userData.details : null;
+                    return fetch(`consultar_inventario.php?ajax=1&all=1&u=${encodeURIComponent(filtroPersonal)}&s=${encodeURIComponent(statusFilterVal)}`);
+                })
                 .then(res => res.json())
                 .then(res => {
                     Swal.close();
@@ -915,7 +965,10 @@ if (isset($_GET['ajax'])) {
                         Swal.fire('Atención', 'Este usuario no tiene equipos asignados.', 'info');
                     }
                 })
-                .catch(() => Swal.fire('Error', 'No se pudieron obtener los equipos.', 'error'));
+                .catch(() => {
+                    Swal.close();
+                    Swal.fire('Error', 'No se pudieron obtener los datos.', 'error');
+                });
         }
     }
 
