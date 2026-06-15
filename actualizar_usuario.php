@@ -2,7 +2,6 @@
 // actualizar_usuario.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['usuario']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -22,6 +21,10 @@ $ap_pat = $_POST['apellido_paterno'] ?? '';
 $ap_mat = $_POST['apellido_materno'] ?? '';
 $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
+$cargo = $_POST['cargo'] ?? '';
+$correo = $_POST['correo_electronico'] ?? '';
+$telefono = $_POST['telefono'] ?? '';
+$num_empleado = $_POST['num_empleado'] ?? '';
 
 if ($id <= 0 || empty($id_direccion) || empty($nombres)) {
     echo json_encode(['success' => false, 'message' => 'Datos incompletos.']);
@@ -37,14 +40,18 @@ $sql = "UPDATE registros_ad SET
             apellido_paterno = ?, 
             apellido_materno = ?, 
             usuario = ?, 
-            contrasena = ? 
+            contrasena = ?,
+            cargo = ?,
+            correo_electronico = ?,
+            telefono = ?,
+            num_empleado = ?
         WHERE id = ?";
 
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // i (int), s (string) x 6, i (int)
-    $stmt->bind_param("issssssi", 
+    // i (int), s (string) x 10, i (int)
+    $stmt->bind_param("issssssssssi", 
         $id_direccion, 
         $num_oficio, 
         $nombres, 
@@ -52,6 +59,10 @@ if ($stmt) {
         $ap_mat, 
         $usuario, 
         $contrasena,
+        $cargo,
+        $correo,
+        $telefono,
+        $num_empleado,
         $id
     );
 

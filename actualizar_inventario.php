@@ -1,7 +1,9 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Configurar la cabecera para devolver una respuesta JSON
 header('Content-Type: application/json');
@@ -34,7 +36,8 @@ $datos_actualizar = [
     'num_serie'         => $_POST['num_serie'] ?? null,
     'descripcion'       => $_POST['descripcion'] ?? null,
     'personal_asignado' => $_POST['personal_asignado'] ?? null,
-    'ubicacion'         => $_POST['ubicacion'] ?? null
+    'nombre_ubicacion'  => $_POST['nombre_ubicacion'] ?? null,
+    'estatus'           => $_POST['estatus'] ?? null
 ];
 
 // Comprobación mínima

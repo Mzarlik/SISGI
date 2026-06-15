@@ -3,7 +3,6 @@ require_once 'session_check.php';
 require_once 'config.php';
 
 // 1. INICIAR SESIÓN (Crucial para saber quién es el usuario actual)
-session_start(); 
 
 header('Content-Type: application/json');
 date_default_timezone_set('America/Cancun'); 
@@ -27,10 +26,26 @@ switch ($accion) {
     // pero asegúrate de mantener tu código de 'guardar' corregido que hicimos antes.
 
     case 'usuarios':
-        $sql = "SELECT usuario FROM usuarios WHERE rol IN ('admin', 'tecnico', 'masterweb') ORDER BY usuario ASC";
-        $res = $conn->query($sql);
         $usuarios = [];
-        if ($res) { while ($row = $res->fetch_assoc()) { $usuarios[] = $row['usuario']; } }
+        $usuarios_lower = [];
+
+        // Obtener únicamente los usuarios de registros_ad (Usuarios SATQ)
+        $sql2 = "SELECT TRIM(REPLACE(CONCAT(nombres, ' ', COALESCE(apellido_paterno,''), ' ', COALESCE(apellido_materno,'')), '  ', ' ')) as nombre_completo FROM registros_ad";
+        $res2 = $conn->query($sql2);
+        if ($res2) {
+            while ($row = $res2->fetch_assoc()) {
+                $name = trim($row['nombre_completo']);
+                $name_lower = strtolower($name);
+                if ($name !== '' && !in_array($name_lower, $usuarios_lower)) {
+                    $usuarios[] = $name;
+                    $usuarios_lower[] = $name_lower;
+                }
+            }
+        }
+
+        // Ordenar alfabéticamente de forma insensible a mayúsculas
+        usort($usuarios, 'strcasecmp');
+
         echo json_encode($usuarios);
         break;
 

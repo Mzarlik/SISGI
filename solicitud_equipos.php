@@ -1,7 +1,9 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['usuario'])) {
     header("Location: index.php");
@@ -50,11 +52,11 @@ include 'header.php';
     <script src="js/sweetalert2.all.min.js"></script>
     <link rel="stylesheet" href="css/all.min.css">
     <script src="js/jspdf.umd.min.js"></script>
-    <script src="js/jspdf.plugin.autotable.min.js"></script> <script src="js/xlsx.full.min.js"></script> <script>
-        tailwind.config = {
-            theme: { extend: { colors: { 'primary-dark': '#721538', 'primary-light': '#961e4b', 'background': '#d6d1ca' } } }
-        }
-    </script>
+    <script src="js/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/xlsx.full.min.js"></script>
+    <!-- Fuentes Montserrat para jsPDF -->
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <script>
         tailwind.config = {
             theme: { extend: { colors: { 'primary-dark': '#721538', 'primary-light': '#961e4b', 'background': '#d6d1ca' } } }
@@ -288,6 +290,7 @@ function validar() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
+    doc.setFont("Montserrat", "normal");
     // 1. Título y Encabezado
     doc.setTextColor(114, 21, 56);
     doc.setFontSize(14);
@@ -323,7 +326,7 @@ function validar() {
         body: filas,
         theme: 'grid',
         headStyles: { fillColor: [114, 21, 56] },
-        styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', font: 'Montserrat' },
         columnStyles: { 
             0: { cellWidth: 15, halign: 'center' }, 
             1: { cellWidth: 50 } 
@@ -347,26 +350,26 @@ function validar() {
 
     // --- FIRMA IZQUIERDA: REALIZÓ DIAGNÓSTICO (FIJO: MANUEL ALEJANDRO LOZANO REYES) ---
     doc.line(20, finalY, 90, finalY);
-    doc.setFont(undefined, 'bold');
+    doc.setFont("Montserrat", "bold");
     doc.text("REALIZÓ DIAGNÓSTICO", 55, finalY + 5, { align: 'center' });
-    doc.setFont(undefined, 'normal');
+    doc.setFont("Montserrat", "normal");
     doc.text("Manuel Alejandro Lozano Reyes", 55, finalY + 10, { align: 'center' });
     doc.text("Coordinador de Soporte Técnico", 55, finalY + 14, { align: 'center' });
 
     // --- FIRMA DERECHA: SOLICITA (DINÁMICO SEGÚN EL ÁREA) ---
     doc.line(120, finalY, 190, finalY);
-    doc.setFont(undefined, 'bold');
+    doc.setFont("Montserrat", "bold");
     doc.text("SOLICITA", 155, finalY + 5, { align: 'center' });
-    doc.setFont(undefined, 'normal');
+    doc.setFont("Montserrat", "normal");
     doc.text(config.representante || "NOMBRE NO ASIGNADO", 155, finalY + 10, { align: 'center' });
     doc.text(`Responsable de ${config.area}`, 155, finalY + 14, { align: 'center' });
 
     // --- FIRMA INFERIOR: AUTORIZA (FIJO: ALEJANDRO CAMBRANO) ---
     const bottomY = finalY + 35;
     doc.line(65, bottomY, 145, bottomY);
-    doc.setFont(undefined, 'bold');
+    doc.setFont("Montserrat", "bold");
     doc.text("AUTORIZA", 105, bottomY + 5, { align: 'center' });
-    doc.setFont(undefined, 'normal');
+    doc.setFont("Montserrat", "normal");
     doc.text("Director Asignado al SATQ", 105, bottomY + 10, { align: 'center' });
     doc.text("Hacienda del Estado de Quintana Roo", 105, bottomY + 14, { align: 'center' });
     doc.text("Sistemas SATQ", 105, bottomY + 18, { align: 'center' });

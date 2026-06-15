@@ -2,7 +2,9 @@
 // imprimir_informe.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['usuario'])) { die("Acceso denegado"); }
 
@@ -46,30 +48,120 @@ if (!empty($filtroSecretaria) && !empty($filtroDireccion)) {
     $subtitulo = "Dirección: " . $filtroDireccion;
 }
 
+// --- AUXILIAR: PARSEAR HARDWARE ---
+if (!function_exists('analizarDescripcionHardware')) {
+    function analizarDescripcionHardware($descripcion, $marca = '', $modelo = '') {
+        $desc = mb_strtoupper($descripcion);
+        $full = $desc . " | " . mb_strtoupper($marca) . " | " . mb_strtoupper($modelo);
+        
+        // 1. Procesador
+        $procesador = "Intel Core i5"; // Default razonable
+        if (stripos($full, 'Celeron') !== false) {
+            $procesador = "Intel Celeron";
+        } elseif (stripos($full, 'Pentium') !== false) {
+            $procesador = "Intel Pentium";
+        } elseif (stripos($full, 'Atom') !== false) {
+            $procesador = "Intel Atom";
+        } elseif (stripos($full, 'Dual Core') !== false || stripos($full, 'Core 2') !== false || stripos($full, 'Core2') !== false) {
+            $procesador = "Intel Dual Core";
+        } elseif (stripos($full, 'i3') !== false) {
+            $procesador = "Intel Core i3";
+        } elseif (stripos($full, 'i7') !== false) {
+            $procesador = "Intel Core i7";
+        } elseif (stripos($full, 'Ryzen') !== false) {
+            $procesador = "AMD Ryzen";
+        }
+        
+        // 2. RAM
+        $ram = "8 GB"; // Default
+        if (preg_match('/(\d+)\s*(GB|MB|GM|G)/i', $desc, $matches)) {
+            $val = intval($matches[1]);
+            $unit = strtoupper($matches[2]);
+            if ($val > 0) {
+                if ($unit === 'MB') {
+                    $ram = $val . " MB";
+                } else {
+                    $ram = $val . " GB";
+                }
+            }
+        }
+        
+        // 3. Disco
+        $disco = "HDD 500GB"; // Default
+        if (stripos($full, 'SSD') !== false || stripos($full, 'M.2') !== false || stripos($full, 'SOLIDO') !== false || stripos($full, 'SÓLIDO') !== false) {
+            $disco = "SSD 240GB";
+        } elseif (preg_match('/(\d+)\s*(GB|TB)\s*(DISCO|HDD|MECANICO)/i', $desc, $matches)) {
+            $disco = "HDD " . $matches[1] . $matches[2];
+        }
+        
+        // 4. Sistema Operativo
+        $so = "Windows 10 Pro"; // Default
+        if (stripos($full, 'Windows 11') !== false || stripos($full, 'Win 11') !== false || stripos($full, 'Win11') !== false) {
+            $so = "Windows 11 Pro";
+        } elseif (stripos($full, 'Windows 7') !== false || stripos($full, 'Win 7') !== false || stripos($full, 'Win7') !== false || stripos($full, 'WUINDOS 7') !== false) {
+            $so = "Windows 7 Pro";
+        } elseif (stripos($full, 'Windows CE') !== false) {
+            $so = "Windows CE";
+        }
+        
+        return [
+            'procesador' => $procesador,
+            'ram' => $ram,
+            'tipodisco_capa' => $disco,
+            'sistemaOperativo' => $so
+        ];
+    }
+}
+
 // --- 3. OBTENCIÓN Y PROCESAMIENTO DE DATOS ---
 $conn = get_db_connection();
-$whereSQL = "WHERE tipoequipo NOT LIKE '%Impresora%'";
+
+$whereClauses = [];
+$furniture_types = "'Silla', 'Escritorio', 'Mueble', 'Archivero', 'Silla de oficina', 'Escritorio de oficina'";
+$whereClauses[] = "tbi.nombre_tipo NOT IN ($furniture_types)";
+$whereClauses[] = "tbi.nombre_tipo NOT LIKE '%Impresora%'";
 
 if (!empty($filtroSecretaria)) {
     $sec = $conn->real_escape_string($filtroSecretaria);
-    $whereSQL .= " AND secretaria = '$sec'";
-}
-if (!empty($filtroDireccion)) {
-    $dir = $conn->real_escape_string($filtroDireccion);
-    $whereSQL .= " AND direccion = '$dir'";
+    $whereClauses[] = "(s.nombres = '$sec' OR (s.nombres IS NULL AND '$sec' = 'SATQ'))";
 }
 
-$sql = "SELECT * FROM equiposbd $whereSQL ORDER BY direccion ASC";
+if (!empty($filtroDireccion)) {
+    $dir = $conn->real_escape_string($filtroDireccion);
+    $whereClauses[] = "(d.nombre_direccion = '$dir' OR (d.nombre_direccion IS NULL AND inv.nombre_ubicacion = '$dir'))";
+}
+
+$whereSQL = "WHERE " . implode(' AND ', $whereClauses);
+
+$sql = "SELECT inv.id, inv.num_inventario as numInventario, tbi.nombre_tipo as tipoequipo, 
+               CONCAT(COALESCE(inv.marca,''), ' ', COALESCE(inv.modelo,'')) as marca_modelo,
+               inv.personal_asignado as usuariosEquipo, 
+               COALESCE(d.nombre_direccion, inv.nombre_ubicacion) as direccion, 
+               inv.estatus as estatus_equipo, inv.descripcion as observaciones,
+               COALESCE(s.nombres, 'SATQ') as secretaria,
+               inv.descripcion, inv.marca, inv.modelo
+        FROM inventario_soporte inv
+        LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
+        LEFT JOIN registros_ad r ON TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) = inv.personal_asignado
+        LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
+        LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
+        $whereSQL 
+        ORDER BY direccion ASC";
+
 $result = $conn->query($sql);
 $datos = [];
 
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
-        $ramGB = intval($row['ram']);
-        $discoRaw = $row['tipodisco_capa'];
-        $procRaw = $row['procesador'];
-        $osRaw = $row['sistemaOperativo'];
+        $hardware = analizarDescripcionHardware($row['descripcion'], $row['marca'] ?? '', $row['modelo'] ?? '');
+        
+        $ramRaw = $hardware['ram']; 
+        $discoRaw = $hardware['tipodisco_capa'];
+        $procRaw = $hardware['procesador'];
+        $osRaw = $hardware['sistemaOperativo'];
+        $estatusRaw = $row['estatus_equipo'] ?? '';
 
+        $ramGB = intval($ramRaw); 
         $esSSD = (stripos($discoRaw, 'SSD') !== false || stripos($discoRaw, 'M.2') !== false || stripos($discoRaw, 'Solid') !== false);
         $esHDD = !$esSSD;
         $tieneWin11 = (stripos($osRaw, '11') !== false);
@@ -78,6 +170,14 @@ if ($result && $result->num_rows > 0) {
                        stripos($procRaw, 'Pentium') !== false || 
                        stripos($procRaw, 'Atom') !== false || 
                        stripos($procRaw, 'Duo') !== false);
+
+        $esDanado = (stripos($estatusRaw, 'Dañado') !== false || stripos($estatusRaw, 'Baja') !== false || stripos($estatusRaw, 'Para Baja') !== false);
+
+        // Mapear los datos de hardware al array de la fila para que no se rompan las referencias
+        $row['ram'] = $ramRaw;
+        $row['tipodisco_capa'] = $discoRaw;
+        $row['procesador'] = $procRaw;
+        $row['sistemaOperativo'] = $osRaw;
 
         $agregar = false;
         $esForzado = false;
@@ -105,8 +205,15 @@ if ($result && $result->num_rows > 0) {
 
         // SI NO FUE FORZADO, SE APLICA LA LÓGICA NORMAL
         if (!$esForzado) {
-            // 1. Es Obsoleto (CRÍTICO)
-            if ($esObsoleto) {
+            // 1. Es Obsoleto o Dañado (CRÍTICO)
+            if ($esDanado) {
+                if ($tipoReporte == 'criticos' || $tipoReporte == 'unificado') {
+                    $row['etiqueta_tipo'] = 'BAJA';
+                    $row['clase_badge'] = 'badge-baja';
+                    $row['diagnostico_print'] = "Equipo Dañado / Baja";
+                    $agregar = true;
+                }
+            } elseif ($esObsoleto) {
                 if ($tipoReporte == 'criticos' || $tipoReporte == 'unificado') {
                     $row['etiqueta_tipo'] = 'BAJA';
                     $row['clase_badge'] = 'badge-baja';
@@ -116,23 +223,27 @@ if ($result && $result->num_rows > 0) {
             } 
             // 2. Es Candidato (MEJORA)
             else {
-                $acciones = [];
-                $esCandidato = false;
-                $soloRequiereWin11 = false;
+                // Si es SSD, >=8GB y Win11, es ÓPTIMO, así que no se agrega a Bajas o Mejoras.
+                $esOptimo = ($esSSD && $ramGB >= 8 && $tieneWin11);
+                if (!$esOptimo) {
+                    $acciones = [];
+                    $esCandidato = false;
+                    $soloRequiereWin11 = false;
 
-                if ($esHDD) { $acciones[] = "Cambio de unidad a SSD"; $esCandidato = true; }
-                if ($ramGB < 8) { $acciones[] = "Aumento de memoria RAM (Actual: $ramGB GB)"; $esCandidato = true; }
-                if (!$tieneWin11) { $acciones[] = "Actualizar Sistema Operativo a Win 11"; $esCandidato = true; }
+                    if ($esHDD) { $acciones[] = "Cambio de unidad a SSD"; $esCandidato = true; }
+                    if ($ramGB < 8) { $acciones[] = "Aumento de memoria RAM (Actual: $ramGB GB)"; $esCandidato = true; }
+                    if (!$tieneWin11) { $acciones[] = "Actualizar Sistema Operativo a Win 11"; $esCandidato = true; }
 
-                if (!$esHDD && $ramGB >= 8 && !$tieneWin11) { $soloRequiereWin11 = true; }
-                if ($vista == 'filtrada' && $soloRequiereWin11) { $esCandidato = false; }
+                    if (!$esHDD && $ramGB >= 8 && !$tieneWin11) { $soloRequiereWin11 = true; }
+                    if ($vista == 'filtrada' && $soloRequiereWin11) { $esCandidato = false; }
 
-                if ($esCandidato) {
-                    if ($tipoReporte == 'candidatos' || $tipoReporte == 'unificado') {
-                        $row['etiqueta_tipo'] = 'MEJORA';
-                        $row['clase_badge'] = 'badge-mejora';
-                        $row['diagnostico_print'] = implode(', ', $acciones);
-                        $agregar = true;
+                    if ($esCandidato) {
+                        if ($tipoReporte == 'candidatos' || $tipoReporte == 'unificado') {
+                            $row['etiqueta_tipo'] = 'MEJORA';
+                            $row['clase_badge'] = 'badge-mejora';
+                            $row['diagnostico_print'] = implode(', ', $acciones);
+                            $agregar = true;
+                        }
                     }
                 }
             }
@@ -150,59 +261,46 @@ if ($result && $result->num_rows > 0) {
 <head>
     <meta charset="UTF-8">
     <title>Reporte Técnico - SATQ</title>
+    <script src="js/jspdf.umd.min.js"></script>
+    <script src="js/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/Montserrat-normal.js"></script>
+    <script src="js/Montserrat-bold.js"></script>
     <style>
-        body { font-family: 'Arial', sans-serif; font-size: 11px; color: #333; margin: 0; padding: 20px; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        
-        th { 
-            background-color: <?= $colorHeader ?>; 
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #525659; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
             color: white; 
-            font-weight: bold; 
-            font-size: 10px; 
-            text-transform: uppercase; 
-            padding: 8px 10px;
-            text-align: left;
-            border: 1px solid #721538;
+            font-family: sans-serif; 
         }
-
-        td { 
-            border-bottom: 1px solid #ddd; 
-            padding: 8px 10px; 
-            vertical-align: middle;
-            background-color: #fff; 
+        #pdf-viewer { 
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+            display: none; 
         }
-        
-        tr:hover td { background-color: #f9f9f9; }
-
-        .badge { font-size: 9px; font-weight: bold; padding: 3px 6px; border-radius: 4px; display: inline-block; min-width: 55px; text-align: center; }
-        .badge-baja { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; } 
-        .badge-mejora { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; } 
-
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid <?= $colorHeader ?>; padding-bottom: 15px; }
-        .header-content { text-align: left; }
-        .header h1 { margin: 0; font-size: 18px; color: <?= $colorHeader ?>; text-transform: uppercase; font-weight: bold; }
-        .header h2 { margin: 5px 0; font-size: 12px; color: #444; }
-        .fecha-box { text-align: right; font-size: 11px; color: #666; }
-
-        .firmas { margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid; }
-        .firma-box { width: 40%; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
-
-        @media print {
-            .no-print { display: none !important; }
-            body { padding: 0; }
-            th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .loader { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid <?= $colorHeader ?>; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin-bottom: 10px; 
         }
-
-        #panelOpciones { transition: opacity 0.3s ease; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     <script>
         function togglePanel() {
             var panel = document.getElementById('panelOpciones');
             var btn = document.getElementById('btnMostrarPanel');
             
-            if (panel.style.display === 'none') {
+            if (panel.style.display === 'none' || panel.style.display === '') {
                 panel.style.display = 'block';
                 btn.style.display = 'none';
             } else {
@@ -272,98 +370,140 @@ if ($result && $result->num_rows > 0) {
             </form>
         </div>
         
-        <button onclick="window.print()" style="margin-top: 10px; width: 100%; padding: 8px; cursor: pointer; font-weight: bold; background: #333; color: white; border: none; border-radius: 4px;">🖨️ IMPRIMIR</button>
+        <button onclick="descargarPDF()" style="margin-top: 10px; width: 100%; padding: 8px; cursor: pointer; font-weight: bold; background: #333; color: white; border: none; border-radius: 4px;">📥 DESCARGAR PDF</button>
     </div>
 
-    <div class="header">
-        <div class="header-content">
-            <h1>Hacienda del Estado de Quintana Roo</h1>
-            <h2>SATQ</h2>
-            <div style="font-size: 12px; margin-top: 5px; color: #721538; font-weight: bold;"><?= $titulo ?></div>
-        </div>
-        <div class="fecha-box">
-            <strong>Fecha de Emisión:</strong><br>
-            <?= date('d/m/Y') ?><br>
-            <?= date('H:i A') ?>
-        </div>
-    </div>
+    <script>
+        const datos = <?php echo json_encode($datos); ?>;
+        const tituloReporte = <?php echo json_encode($titulo); ?>;
+        const subTituloReporte = <?php echo json_encode($subtitulo); ?>;
+        const descReporte = <?php echo json_encode(strip_tags($desc)); ?>;
 
-    <div style="margin-bottom: 10px; font-size: 11px; padding: 8px; background: #f9f9f9; border-left: 4px solid <?= $colorHeader ?>;">
-        <strong>Filtro Aplicado:</strong> <?= htmlspecialchars($subtitulo) ?> <br>
-        <span style="color: #666; font-style: italic;"><?= $desc ?> (Total: <?= count($datos) ?>)</span>
-    </div>
+        window.globalDoc = null;
 
-    <table>
-        <thead>
-            <tr>
-                <th width="8%" style="text-align: center;">Inventario</th>
-                <th width="8%" style="text-align: center;">Estatus</th>
-                <th width="15%">Equipo</th> 
-                <th width="20%">Ubicación / Dirección</th>
-                <th width="15%">Usuario</th>
-                <th width="14%">Hardware</th>
-                <th width="20%">Acción Requerida / Diagnóstico</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if(count($datos) > 0): foreach($datos as $d): ?>
-            <tr>
-                <td style="font-weight: bold; text-align: center; font-family: monospace; font-size: 12px;"><?= htmlspecialchars($d['numInventario']) ?></td>
+        window.onload = function() {
+            generarPDF();
+        };
+
+        function generarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'pt', 'letter');
+            window.globalDoc = doc;
+            
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const marginLeft = 40;
+            const marginRight = 40;
+            
+            const logoGob = new Image();
+            logoGob.src = 'img/logo_gobierno.png';
+            
+            const logoHacienda = new Image();
+            logoHacienda.src = 'img/logo_hacienda.png';
+            
+            Promise.all([
+                new Promise((resolve) => { logoGob.onload = resolve; logoGob.onerror = resolve; }),
+                new Promise((resolve) => { logoHacienda.onload = resolve; logoHacienda.onerror = resolve; })
+            ]).then(() => {
+                let startY = 40;
                 
-                <td style="text-align: center;">
-                    <span class="badge <?= $d['clase_badge'] ?>">
-                        <?= $d['etiqueta_tipo'] ?>
-                    </span>
-                </td>
-
-                <td>
-                    <strong style="color: #333;"><?= htmlspecialchars($d['tipoequipo']) ?></strong><br>
-                    <span style="font-size: 10px; color: #777;"><?= htmlspecialchars($d['marca_modelo']) ?></span>
-                </td>
-
-                <td>
-                    <strong style="color: #333;"><?= htmlspecialchars($d['direccion']) ?></strong><br>
-                    <span style="color:#777; font-size:9px;"><?= htmlspecialchars($d['secretaria']) ?></span>
-                </td>
+                if(logoGob.width > 0) {
+                    doc.addImage(logoGob, 'PNG', marginLeft, startY, 130, 45);
+                }
                 
-                <td style="color: #444;"><?= htmlspecialchars($d['usuariosEquipo']) ?></td>
-                
-                <td>
-                    <span style="font-size: 10px; color: #555;">
-                    <i style="color: #888;">CPU:</i> <?= htmlspecialchars($d['procesador']) ?><br>
-                    <i style="color: #888;">RAM:</i> <?= htmlspecialchars($d['ram']) ?>
-                    <i style="color: #888;">DISCO:</i> <?= htmlspecialchars($d['tipodisco_capa']) ?>
-                    </span>
-                </td>
-                
-                <td>
-                    <span style="font-weight: bold; color: #333; font-size: 11px;">
-                        <?= $d['diagnostico_print'] ?>
-                    </span>
-                </td>
-            </tr>
-            <?php endforeach; else: ?>
-            <tr>
-                <td colspan="7" style="text-align: center; padding: 30px; color: #777;">
-                    -- No se encontraron registros con los filtros seleccionados --
-                </td>
-            </tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
+                doc.setFont("Montserrat", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(100);
+                const fechaActual = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const horaActual = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                doc.text(`Fecha de Emisión: ${fechaActual}`, pageWidth - marginRight, startY + 10, { align: 'right' });
+                doc.text(`Hora: ${horaActual}`, pageWidth - marginRight, startY + 22, { align: 'right' });
 
-    <div class="firmas">
-        <div class="firma-box">
-            <br><br>
-            <strong>Manuel Alejandro Lozano Reyes</strong><br>
-            <span style="font-size: 10px; color: #555;">Soporte Técnico - SATQ</span>
-        </div>
-        <div class="firma-box">
-            <br><br>
-            <strong>Recibió / Enterado</strong><br>
-            <span style="font-size: 10px; color: #555;">Titular del Área / Enlace Administrativo</span>
-        </div>
-    </div>
+                startY += 55;
+
+                doc.setFont("Montserrat", "bold");
+                doc.setFontSize(14);
+                doc.setTextColor(114, 21, 56);
+                doc.text(tituloReporte, pageWidth / 2, startY, { align: "center" });
+                startY += 15;
+
+                doc.setFontSize(10);
+                doc.setTextColor(50);
+                doc.text(`Filtro Aplicado: ${subTituloReporte}`, pageWidth / 2, startY, { align: "center" });
+                startY += 12;
+                
+                doc.setFont("Montserrat", "normal");
+                doc.setFontSize(9);
+                doc.text(`${descReporte} (Total: ${datos.length})`, pageWidth / 2, startY, { align: "center" });
+                startY += 20;
+
+                const filas = datos.map(d => [
+                    d.numInventario || 'S/N',
+                    d.etiqueta_tipo || 'N/A',
+                    `${d.tipoequipo || ''}\n${d.marca_modelo || ''}`,
+                    `${d.direccion || ''}\n${d.secretaria || ''}`,
+                    d.usuariosEquipo || 'STOCK',
+                    `CPU: ${d.procesador || ''}\nRAM: ${d.ram || ''}\nDISCO: ${d.tipodisco_capa || ''}`,
+                    d.diagnostico_print || ''
+                ]);
+
+                doc.autoTable({
+                    startY: startY,
+                    head: [['Inventario', 'Estatus', 'Equipo', 'Ubicación / Dirección', 'Usuario', 'Hardware', 'Diagnóstico / Acción']],
+                    body: filas.length > 0 ? filas : [['', '', '', '-- No se encontraron registros --', '', '', '']],
+                    theme: 'grid',
+                    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+                    styles: { font: 'Montserrat', fontSize: 8, cellPadding: 4, textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, valign: 'middle' },
+                    columnStyles: { 
+                        0: { halign: 'center', fontStyle: 'bold' },
+                        1: { halign: 'center', fontStyle: 'bold', textColor: [114, 21, 56] }
+                    },
+                    didDrawPage: function(data) {
+                        if(logoHacienda.width > 0) {
+                            doc.addImage(logoHacienda, 'PNG', pageWidth - marginRight - 160, pageHeight - 65, 160, 40);
+                        }
+                        
+                        doc.setFontSize(8);
+                        doc.setFont("Montserrat", "normal");
+                        doc.setTextColor(100);
+                        const footerText = "Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx";
+                        doc.text(footerText, marginLeft, pageHeight - 40, { align: 'left' });
+                    }
+                });
+
+                let finalY = doc.lastAutoTable.finalY + 40;
+
+                if (finalY > pageHeight - 80) {
+                    doc.addPage();
+                    finalY = 60;
+                }
+
+                doc.setFont("Montserrat", "bold");
+                doc.setFontSize(10);
+                doc.setTextColor(0);
+
+                doc.line(marginLeft + 40, finalY, marginLeft + 240, finalY);
+                doc.text("Manuel Alejandro Lozano Reyes", marginLeft + 140, finalY + 12, { align: 'center' });
+                doc.setFont("Montserrat", "normal");
+                doc.setFontSize(9);
+                doc.text("Soporte Técnico - SATQ", marginLeft + 140, finalY + 22, { align: 'center' });
+
+                doc.setFont("Montserrat", "bold");
+                doc.setFontSize(10);
+                doc.line(pageWidth - marginRight - 240, finalY, pageWidth - marginRight - 40, finalY);
+                doc.text("Recibió / Enterado", pageWidth - marginRight - 140, finalY + 12, { align: 'center' });
+                doc.setFont("Montserrat", "normal");
+                doc.setFontSize(9);
+                doc.text("Titular del Área / Enlace Administrativo", pageWidth - marginRight - 140, finalY + 22, { align: 'center' });
+
+                const pdfBlobUrl = doc.output('bloburl');
+                document.getElementById('loading').style.display = 'none';
+                const viewer = document.getElementById('pdf-viewer');
+                viewer.style.display = 'block';
+                viewer.src = pdfBlobUrl;
+            });
+        }
+    </script>
 
 </body>
 </html>

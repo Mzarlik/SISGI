@@ -2,7 +2,9 @@
 // guardar_registro.php (VERSIÓN LIMPIA - SOLO IDs)
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['usuario']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -24,6 +26,9 @@ $ap_pat = $_POST['apellido_paterno'] ?? '';
 $ap_mat = $_POST['apellido_materno'] ?? '';
 $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
+$cargo = $_POST['cargo'] ?? '';
+$correo = $_POST['correo_electronico'] ?? '';
+$telefono = $_POST['telefono'] ?? '';
 
 // Validar campos obligatorios
 if (empty($id_direccion) || empty($nombres) || empty($usuario)) {
@@ -32,16 +37,15 @@ if (empty($id_direccion) || empty($nombres) || empty($usuario)) {
 }
 
 // INSERTAR
-// Nota: Ya no mencionamos ni 'secretaria' ni 'direccion' porque las borraste.
 $sql = "INSERT INTO registros_ad 
-        (id_direccion, num_oficio, fecha_alta, num_empleado, nombres, apellido_paterno, apellido_materno, usuario, contrasena) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        (id_direccion, num_oficio, fecha_alta, num_empleado, nombres, apellido_paterno, apellido_materno, usuario, contrasena, cargo, correo_electronico, telefono) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // Tipos: i (int) y 8 strings (s)
-    $stmt->bind_param("issssssss", 
+    // Tipos: i (int) y 11 strings (s)
+    $stmt->bind_param("isssssssssss", 
         $id_direccion, 
         $num_oficio, 
         $fecha_alta, 
@@ -50,7 +54,10 @@ if ($stmt) {
         $ap_pat, 
         $ap_mat, 
         $usuario, 
-        $contrasena
+        $contrasena,
+        $cargo,
+        $correo,
+        $telefono
     );
 
     if ($stmt->execute()) {

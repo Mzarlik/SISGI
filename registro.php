@@ -1,7 +1,9 @@
 <?php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 1. SEGURIDAD: Verifica si el usuario está logueado y si su rol está permitido
 $roles_permitidos = ['admin', 'tecnico'];
@@ -18,7 +20,7 @@ include 'header.php';
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>Registro AD</title>
+    <title>Registro SATQ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <link rel="stylesheet" href="css/style.css">
     <script src="js/sweetalert2.all.min.js"></script>
@@ -47,7 +49,7 @@ include 'header.php';
 <div class="center-container">
     <div class="card">
 
-        <h2>Registro de Usuarios AD</h2>
+        <h2>Registro de Usuarios SATQ</h2>
 
         <form id="formRegistro">
             
@@ -96,6 +98,20 @@ include 'header.php';
                 <div class="form-col">
                     <label>Apellido materno:</label>
                     <input type="text" name="apellido_materno" placeholder="Ej: MZARLIK" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Cargo / Puesto:</label>
+                    <input type="text" name="cargo" placeholder="Ej: Jefe de Departamento">
+                </div>
+                <div class="form-col">
+                    <label>Contacto (Correo / Teléfono):</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" name="correo_electronico" placeholder="Correo" style="flex:1;">
+                        <input type="text" name="telefono" placeholder="Teléfono" style="flex:1;">
+                    </div>
                 </div>
             </div>
             
