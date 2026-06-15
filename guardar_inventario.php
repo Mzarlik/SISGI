@@ -32,6 +32,8 @@ $ubicacion = trim($_POST['ubicacion'] ?? '');
 $estatus = trim($_POST['estatus'] ?? 'En Stock');
 $municipio = trim($_POST['municipio'] ?? '');
 $color = trim($_POST['color'] ?? '');
+$no_bien_mueble = trim($_POST['no_bien_mueble'] ?? '');
+$no_inv_anterior = trim($_POST['no_inv_anterior'] ?? '');
 
 
 // Validación básica
@@ -121,8 +123,8 @@ if (isset($_FILES['foto_evidencia']) && $_FILES['foto_evidencia']['error'] === U
 // 3. Inserción en la Base de Datos
 // Ajusta "ruta_foto" al nombre real de la columna que uses en tu tabla inventario_soporte
 $sql_insert = "INSERT INTO inventario_soporte
-    (num_inventario, id_tipo_bien, marca, modelo, num_serie, descripcion, personal_asignado, ubicacion, ruta_foto, estatus, municipio, color)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    (num_inventario, id_tipo_bien, marca, modelo, num_serie, descripcion, personal_asignado, ubicacion, ruta_foto, estatus, municipio, color, no_bien_mueble, no_inv_anterior)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 $stmt = $conn->prepare($sql_insert);
 if ($stmt === false) {
@@ -132,10 +134,10 @@ if ($stmt === false) {
 }
 
 // s: string, i: integer
-$stmt->bind_param("sissssssssss", 
+$stmt->bind_param("sissssssssssss", 
     $num_inventario, $id_tipo_bien, $marca, $modelo, $num_serie, 
     $descripcion, $personal_asignado, $ubicacion, $ruta_guardado_db,
-    $estatus, $municipio, $color
+    $estatus, $municipio, $color, $no_bien_mueble, $no_inv_anterior
 );
 
 if ($stmt->execute()) {

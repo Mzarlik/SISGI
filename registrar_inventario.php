@@ -9,7 +9,11 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-
+// Bloquear acceso a técnicos de redes (se maneja en el backend también)
+if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'redes') {
+    header("Location: dashboard.php?error=acceso_denegado");
+    exit();
+}
 
 // ===============================================
 // 1. LÓGICA PHP PARA OBTENER DATOS DESDE LA BD
@@ -19,27 +23,14 @@ $tipos_equipo = [];
 $ubicaciones = [];
 
 if ($conn) {
-    /**
-     * Función auxiliar para obtener valores ENUM de una columna específica.
-     */
-    function get_enum_values($conn, $table, $column_name) {
-        $values = [];
-        $sql_enum = "SHOW COLUMNS FROM {$table} LIKE '{$column_name}'";
-        $result = $conn->query($sql_enum);
-
-        if ($result && $result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $enum_definition = $row['Type'];
-            
-            if (preg_match("/^enum\('(.*)'\)$/", $enum_definition, $matches)) {
-                $values = explode("','", $matches[1]);
-            }
+    // A. Obtener ubicaciones distintas existentes en la base de datos
+    $sql_ubicaciones = "SELECT DISTINCT ubicacion FROM inventario_soporte WHERE ubicacion IS NOT NULL AND ubicacion <> '' ORDER BY ubicacion ASC";
+    $result_ubicaciones = $conn->query($sql_ubicaciones);
+    if ($result_ubicaciones && $result_ubicaciones->num_rows > 0) {
+        while ($row = $result_ubicaciones->fetch_assoc()) {
+            $ubicaciones[] = $row['ubicacion'];
         }
-        return $values;
     }
-
-    // A. Obtener ubicaciones (Mantiene el sistema ENUM)
-    $ubicaciones = get_enum_values($conn, 'inventario_soporte', 'ubicacion');
 
     // B. Obtener tipos de equipo desde la nueva tabla relacional
     $sql_tipos = "SELECT id_tipo, nombre_tipo FROM tipo_bien_inventario ORDER BY nombre_tipo ASC";
@@ -49,6 +40,39 @@ if ($conn) {
         while ($row = $result_tipos->fetch_assoc()) {
             $tipos_equipo[] = $row;
         }
+    }
+
+    // C. Obtener lista de personal asignado (de usuarios del sistema y existentes en inventario)
+    $personal_asignado_sug = [];
+    
+    // Obtener de la tabla usuarios
+    $sql_usuarios = "SELECT usuario FROM usuarios ORDER BY usuario ASC";
+    $result_usuarios = $conn->query($sql_usuarios);
+    if ($result_usuarios && $result_usuarios->num_rows > 0) {
+        while ($row = $result_usuarios->fetch_assoc()) {
+            $user_formatted = ucwords(strtolower($row['usuario']));
+            if (!in_array($user_formatted, $personal_asignado_sug)) {
+                $personal_asignado_sug[] = $user_formatted;
+            }
+        }
+    }
+    
+    // Obtener de inventario_soporte
+    $sql_personal = "SELECT DISTINCT personal_asignado FROM inventario_soporte WHERE personal_asignado IS NOT NULL AND personal_asignado <> '' AND personal_asignado <> 'STOCK' ORDER BY personal_asignado ASC";
+    $result_personal = $conn->query($sql_personal);
+    if ($result_personal && $result_personal->num_rows > 0) {
+        while ($row = $result_personal->fetch_assoc()) {
+            $pers = trim($row['personal_asignado']);
+            if (!in_array($pers, $personal_asignado_sug)) {
+                $personal_asignado_sug[] = $pers;
+            }
+        }
+    }
+    
+    // Ordenar alfabéticamente y asegurar STOCK
+    sort($personal_asignado_sug);
+    if (!in_array('STOCK', $personal_asignado_sug)) {
+        array_unshift($personal_asignado_sug, 'STOCK');
     }
 }
 ?>
@@ -94,7 +118,17 @@ if ($conn) {
                 </div>
                 <div class="form-col">
                     <label for="municipio">Municipio:</label>
-                    <input type="text" id="municipio" name="municipio" value="Benito Juárez">
+                    <input type="text" id="municipio" name="municipio" value="Solidaridad">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="no_bien_mueble">No. de Bien Mueble (Opcional):</label>
+                    <input type="text" id="no_bien_mueble" name="no_bien_mueble" placeholder="Ej: 5111000001">
+                </div>
+                <div class="form-col">
+                    <label for="no_inv_anterior">No. de Inventario Anterior (Opcional):</label>
+                    <input type="text" id="no_inv_anterior" name="no_inv_anterior" placeholder="Ej: INV-ANT-1234">
                 </div>
             </div>
             <div class="form-row">
@@ -164,23 +198,29 @@ if ($conn) {
             <div class="form-row">
                 <div class="form-col">
                     <label for="personal_asignado">Personal Asignado:</label>
-                    <input type="text" id="personal_asignado" name="personal_asignado" placeholder="Nombre de la persona o 'STOCK'">
+                    <input type="text" id="personal_asignado" name="personal_asignado" list="lista_personal" placeholder="Nombre de la persona o 'STOCK'">
+                    <datalist id="lista_personal">
+                        <?php 
+                        if (!empty($personal_asignado_sug)) {
+                            foreach ($personal_asignado_sug as $pers) {
+                                echo "<option value=\"" . htmlspecialchars($pers) . "\">";
+                            }
+                        }
+                        ?>
+                    </datalist>
                 </div>
                 <div class="form-col">
                     <label for="ubicacion">Ubicación:</label>
-                    <select id="ubicacion" name="ubicacion" required>
-                        <option value="">-- Selecciona --</option>
+                    <input type="text" id="ubicacion" name="ubicacion" list="lista_ubicaciones" placeholder="Selecciona o escribe una ubicación" required>
+                    <datalist id="lista_ubicaciones">
                         <?php 
                         if (!empty($ubicaciones)) {
-                            foreach ($ubicaciones as $ubicacion) {
-                                $safe_ubicacion = htmlspecialchars($ubicacion);
-                                echo "<option value=\"{$safe_ubicacion}\">" . ucwords($safe_ubicacion) . "</option>";
+                            foreach ($ubicaciones as $ubi) {
+                                echo "<option value=\"" . htmlspecialchars($ubi) . "\">";
                             }
-                        } else {
-                            echo "<option value=\"\" disabled>-- Error al cargar ubicaciones --</option>";
                         }
                         ?>
-                    </select>
+                    </datalist>
                 </div>
             </div>
 
@@ -218,8 +258,8 @@ if ($conn) {
         // ---------------------------------------------------------
         // 1. LÓGICA PARA PERIFÉRICOS (Solo para CPU o Computadoras)
         // ---------------------------------------------------------
-        // Quitamos 'ESCRITORIO' de aquí para que no confunda el mueble con una PC
-        if(textoSeleccionado.includes('CPU') || textoSeleccionado.includes('COMPUTADORA') || textoSeleccionado.includes('ALL IN ONE')) {
+        // Quitamos 'ESCRITORIO' de aquí para que no confunda el mueble con una PC, pero admitimos 'PC ESCRITORIO'
+        if(textoSeleccionado.includes('CPU') || textoSeleccionado.includes('COMPUTADORA') || textoSeleccionado.includes('ALL IN ONE') || textoSeleccionado.includes('PC ESCRITORIO') || textoSeleccionado === 'PC') {
             contenedorPerifericos.style.display = 'block';
         } else {
             contenedorPerifericos.style.display = 'none';
@@ -230,7 +270,8 @@ if ($conn) {
         // ---------------------------------------------------------
         // 2. LÓGICA PARA MOBILIARIO (Deshabilitar Marca y Modelo)
         // ---------------------------------------------------------
-        if(textoSeleccionado.includes('SILLA') || textoSeleccionado.includes('ESCRITORIO') || textoSeleccionado.includes('MUEBLE') || textoSeleccionado.includes('ARCHIVERO')) {
+        // Excluimos 'PC ESCRITORIO' de la coincidencia de 'ESCRITORIO' (mueble)
+        if(textoSeleccionado.includes('SILLA') || (textoSeleccionado.includes('ESCRITORIO') && !textoSeleccionado.includes('PC')) || textoSeleccionado.includes('MUEBLE') || textoSeleccionado.includes('ARCHIVERO')) {
             // Hacemos que sean de solo lectura (para que sí se envíen por POST)
             inputMarca.readOnly = true;
             inputModelo.readOnly = true;
