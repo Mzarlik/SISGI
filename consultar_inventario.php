@@ -11,11 +11,14 @@ $conn = get_db_connection();
 $rol_usuario = $_SESSION['rol'] ?? 'tecnico'; 
 $esAdmin = ($rol_usuario === 'admin' || $rol_usuario === 'masterweb'); 
 
-// 1. OBTENER LISTA ÚNICA DE PERSONAL PARA EL FILTRO
+// 1. OBTENER LISTA ÚNICA DE PERSONAL PARA EL FILTRO (incluye histórico de bajas)
 $lista_personal = [];
-$res_pers = $conn->query("SELECT DISTINCT personal_asignado FROM inventario_soporte WHERE personal_asignado IS NOT NULL AND personal_asignado <> '' ORDER BY personal_asignado ASC");
+$res_pers = $conn->query("SELECT DISTINCT personal_asignado AS nombre FROM inventario_soporte WHERE personal_asignado IS NOT NULL AND personal_asignado <> '' AND personal_asignado <> 'STOCK' AND personal_asignado <> 'Sin Asignar'
+UNION
+SELECT DISTINCT ultimo_responsable AS nombre FROM inventario_soporte WHERE ultimo_responsable IS NOT NULL AND ultimo_responsable <> '' AND ultimo_responsable <> 'STOCK' AND ultimo_responsable <> 'Sin Asignar'
+ORDER BY nombre ASC");
 while($p = $res_pers->fetch_assoc()) {
-    $lista_personal[] = $p['personal_asignado'];
+    $lista_personal[] = $p['nombre'];
 }
 
 $tipos_opciones = [];
@@ -24,12 +27,52 @@ while($t = $res_tipos->fetch_assoc()) {
     $tipos_opciones[] = $t;
 }
 
+// 1.5 BACKEND: PROCESAR ACCIÓN DE BAJA EN BASE DE DATOS
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'bulk_baja') {
+    ob_clean();
+    header('Content-Type: application/json');
+    
+    if (!$esAdmin) {
+        echo json_encode(['success' => false, 'message' => 'Permiso denegado. Se requieren permisos de administrador.']);
+        $conn->close();
+        exit();
+    }
+    
+    $ids = isset($_POST['ids']) ? $_POST['ids'] : [];
+    if (empty($ids)) {
+        echo json_encode(['success' => false, 'message' => 'No se seleccionaron equipos.']);
+        $conn->close();
+        exit();
+    }
+    
+    $ids_clean = array_filter(array_map('intval', $ids));
+    if (empty($ids_clean)) {
+        echo json_encode(['success' => false, 'message' => 'IDs de equipo inválidos.']);
+        $conn->close();
+        exit();
+    }
+    
+    $in_clause = implode(',', $ids_clean);
+    $motivo = isset($_POST['motivo']) ? $_POST['motivo'] : '';
+    $safe_motivo = $conn->real_escape_string($motivo);
+    
+    $sql_update = "UPDATE inventario_soporte SET ultimo_responsable = IF(estatus <> 'Para Baja', personal_asignado, ultimo_responsable), estatus = 'Para Baja', personal_asignado = 'STOCK', fecha_baja = CURDATE(), motivo_baja = '$safe_motivo' WHERE id IN ($in_clause)";
+    if ($conn->query($sql_update)) {
+        echo json_encode(['success' => true, 'message' => 'Equipos dados de baja correctamente en el sistema.']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error al actualizar base de datos: ' . $conn->error]);
+    }
+    $conn->close();
+    exit();
+}
+
 // 2. BACKEND: RESPUESTA AJAX (JSON)
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
     
     $search_term = $_GET['q'] ?? '';
-    $filtro_personal = $_GET['u'] ?? ''; 
+    $filtro_status = $_GET['s'] ?? 'ALL';
+    $filtro_personal = $_GET['u'] ?? 'ALL'; 
     $pagina = isset($_GET['p']) && is_numeric($_GET['p']) ? (int)$_GET['p'] : 1;
     $registros_por_pagina = 15;
     $offset = ($pagina - 1) * $registros_por_pagina;
@@ -50,12 +93,25 @@ if (isset($_GET['ajax'])) {
                         inv.nombre_ubicacion LIKE '%$safe_term%')";
     }
 
-    // Filtro específico por personal
-    if (!empty($filtro_personal)) {
-        if ($filtro_personal === 'SIN_ASIGNAR') {
-            $conditions[] = "(inv.personal_asignado IS NULL OR inv.personal_asignado = '' OR inv.personal_asignado = 'STOCK' OR inv.personal_asignado = 'Sin Asignar')";
+    // 1. Filtro por Estado/Stock
+    if ($filtro_status === 'STOCK') {
+        $conditions[] = "(inv.personal_asignado IS NULL OR inv.personal_asignado = '' OR inv.personal_asignado = 'STOCK' OR inv.personal_asignado = 'Sin Asignar') AND inv.estatus <> 'Para Baja'";
+    } elseif ($filtro_status === 'STOCK_IDENTIFICADO') {
+        $conditions[] = "(inv.personal_asignado IS NULL OR inv.personal_asignado = '' OR inv.personal_asignado = 'STOCK' OR inv.personal_asignado = 'Sin Asignar') AND (inv.estatus = 'IDENTIFICADO' OR inv.estatus IS NULL OR inv.estatus = '')";
+    } elseif ($filtro_status === 'STOCK_NO_IDENTIFICADO') {
+        $conditions[] = "(inv.personal_asignado IS NULL OR inv.personal_asignado = '' OR inv.personal_asignado = 'STOCK' OR inv.personal_asignado = 'Sin Asignar') AND inv.estatus = 'NO IDENTIFICADO'";
+    } elseif ($filtro_status === 'BAJA') {
+        $conditions[] = "inv.estatus = 'Para Baja'";
+    } elseif ($filtro_status === 'ASIGNADO') {
+        $conditions[] = "(inv.personal_asignado IS NOT NULL AND inv.personal_asignado <> '' AND inv.personal_asignado <> 'STOCK' AND inv.personal_asignado <> 'Sin Asignar') AND inv.estatus <> 'Para Baja'";
+    }
+
+    // 2. Filtro específico por personal
+    if ($filtro_personal !== 'ALL' && $filtro_personal !== '' && $filtro_personal !== 'SIN_ASIGNAR' && $filtro_personal !== 'STOCK_IDENTIFICADO' && $filtro_personal !== 'STOCK_NO_IDENTIFICADO' && $filtro_personal !== 'BAJA') {
+        $safe_user = $conn->real_escape_string($filtro_personal);
+        if ($filtro_status === 'BAJA') {
+            $conditions[] = "(inv.ultimo_responsable = '$safe_user' OR inv.personal_asignado = '$safe_user')";
         } else {
-            $safe_user = $conn->real_escape_string($filtro_personal);
             $conditions[] = "inv.personal_asignado = '$safe_user'";
         }
     }
@@ -68,7 +124,7 @@ if (isset($_GET['ajax'])) {
     $total_registros = $resCount ? $resCount->fetch_assoc()['total'] : 0;
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
-    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.nombre_ubicacion, inv.ruta_foto, inv.estatus";
+    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ultimo_responsable, inv.fecha_baja, inv.motivo_baja, inv.nombre_ubicacion, inv.ruta_foto, inv.estatus";
     
     // Si es para PDF o para resguardo total, quitamos el límite de paginación
     $limit_clause = " LIMIT $registros_por_pagina OFFSET $offset";
@@ -106,6 +162,8 @@ if (isset($_GET['ajax'])) {
     <script src="js/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="js/xlsx.full.min.js"></script>
+    <script src="js/exceljs.min.js"></script>
+    <script src="js/jszip.min.js"></script>
     <!-- Fuentes Montserrat para jsPDF -->
     <script src="js/Montserrat-normal.js"></script>
     <script src="js/Montserrat-bold.js"></script>
@@ -144,10 +202,20 @@ if (isset($_GET['ajax'])) {
             <input type="text" id="searchInput" placeholder="Buscar serie, modelo, inventario..." class="w-full pl-11 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none transition">
         </div>
 
+        <div class="w-full lg:w-56">
+            <select id="statusFilter" class="w-full p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none bg-white cursor-pointer">
+                <option value="ALL">📁 Todos los Equipos</option>
+                <option value="STOCK" class="font-bold text-gray-700 bg-gray-100">📦 En STOCK (Todos)</option>
+                <option value="STOCK_IDENTIFICADO" class="text-green-700 bg-green-50 font-medium">👉 En STOCK - Identificados</option>
+                <option value="STOCK_NO_IDENTIFICADO" class="text-red-700 bg-red-50 font-medium">👉 En STOCK - No Identificados</option>
+                <option value="ASIGNADO" class="text-blue-700 bg-blue-50 font-medium">👤 Equipos Asignados</option>
+                <option value="BAJA" class="font-bold text-red-600 bg-red-50">⛔ Equipos de BAJA</option>
+            </select>
+        </div>
+
         <div class="w-full lg:w-64">
             <select id="userFilter" class="w-full p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none bg-white cursor-pointer">
-                <option value="">👤 Todos los responsables</option>
-                <option value="SIN_ASIGNAR" class="font-bold text-gray-600 bg-gray-100">📦 En STOCK / Sin Asignar</option>
+                <option value="ALL">👤 Todos los responsables</option>
                 <?php foreach($lista_personal as $nombre): 
                     if (strtoupper($nombre) === 'STOCK' || strtoupper($nombre) === 'SIN ASIGNAR') continue;
                 ?>
@@ -215,9 +283,11 @@ if (isset($_GET['ajax'])) {
 <script>
     let paginaActual = 1;
     let terminoBusqueda = '';
-    let filtroUsuario = '';
+    let filtroStatus = 'ALL';
+    let filtroUsuario = 'ALL';
     let timeoutBusqueda = null;
     let datosActuales = []; 
+    let datosOriginalesPagina = [];
     let equiposSeleccionadosMap = new Map(); // Variable para guardar selecciones globales
     let datosResponsableActual = null; // Para guardar los detalles del usuario filtrado
     const esAdmin = <?= $esAdmin ? 'true' : 'false' ?>;
@@ -234,6 +304,28 @@ if (isset($_GET['ajax'])) {
             timeoutBusqueda = setTimeout(() => { cargarDatos(); }, 300);
         });
 
+        // Listener para el filtro de estado/stock
+        document.getElementById('statusFilter').addEventListener('change', (e) => {
+            filtroStatus = e.target.value;
+            paginaActual = 1;
+            equiposSeleccionadosMap.clear();
+            actualizarContadorSeleccionados();
+
+            // Si es un filtro de STOCK, inhabilitar o limpiar el filtro de responsables
+            const userFilterEl = document.getElementById('userFilter');
+            if (['STOCK', 'STOCK_IDENTIFICADO', 'STOCK_NO_IDENTIFICADO'].includes(filtroStatus)) {
+                userFilterEl.value = 'ALL';
+                filtroUsuario = 'ALL';
+                userFilterEl.disabled = true;
+                userFilterEl.classList.add('bg-gray-100', 'cursor-not-allowed');
+            } else {
+                userFilterEl.disabled = false;
+                userFilterEl.classList.remove('bg-gray-100', 'cursor-not-allowed');
+            }
+
+            cargarDatos();
+        });
+
         // Listener para el filtro de usuario
         document.getElementById('userFilter').addEventListener('change', (e) => {
             filtroUsuario = e.target.value;
@@ -243,7 +335,7 @@ if (isset($_GET['ajax'])) {
             actualizarContadorSeleccionados();
 
             // Si se selecciona un responsable, buscamos sus detalles
-            if (filtroUsuario) {
+            if (filtroUsuario && filtroUsuario !== 'ALL') {
                 fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(filtroUsuario)}`)
                     .then(res => res.json())
                     .then(data => {
@@ -287,12 +379,12 @@ if (isset($_GET['ajax'])) {
 
     function cargarDatos() {
         document.getElementById('loading').style.display = 'block';
-        const url = `consultar_inventario.php?ajax=1&q=${encodeURIComponent(terminoBusqueda)}&u=${encodeURIComponent(filtroUsuario)}&p=${paginaActual}`;
+        const url = `consultar_inventario.php?ajax=1&q=${encodeURIComponent(terminoBusqueda)}&u=${encodeURIComponent(filtroUsuario)}&s=${encodeURIComponent(filtroStatus)}&p=${paginaActual}`;
         
         fetch(url)
             .then(res => res.json())
             .then(res => {
-                datosActuales = res.data;
+                datosOriginalesPagina = res.data;
                 renderizarTabla(res.data);
                 renderizarPaginacion(res.meta);
                 document.getElementById('total-lbl').innerText = res.meta.total_registros;
@@ -301,10 +393,36 @@ if (isset($_GET['ajax'])) {
     }
 
     function renderizarTabla(datos) {
-        const tabla = document.getElementById('tabla-resultados');
-        tabla.innerHTML = datos.length ? '' : '<tr><td colspan="7" class="p-10 text-center text-gray-500 italic">No se encontraron bienes para este filtro.</td></tr>';
+        let datosAMostrar = [...datos];
+        if (terminoBusqueda === '') {
+            // Obtener todos los elementos seleccionados en la sesión actual
+            const seleccionados = Array.from(equiposSeleccionadosMap.values());
+            // Filtrar los que no están presentes en la página actual para agregarlos
+            const noPresentes = seleccionados.filter(sel => !datosAMostrar.some(d => Number(d.id) === Number(sel.id)));
+            datosAMostrar = [...noPresentes, ...datosAMostrar];
+            // Ordenar para dejar los seleccionados al principio de la tabla
+            datosAMostrar.sort((a, b) => {
+                const aSelected = equiposSeleccionadosMap.has(Number(a.id)) ? 1 : 0;
+                const bSelected = equiposSeleccionadosMap.has(Number(b.id)) ? 1 : 0;
+                return bSelected - aSelected;
+            });
+        }
+        
+        // Actualizar datosActuales para que el resto de funciones JS encuentren las filas inyectadas
+        datosActuales = datosAMostrar;
 
-        datos.forEach(row => {
+        // Sincronizar checkbox selectAll
+        const selectAllCheckbox = document.getElementById('selectAll');
+        if (selectAllCheckbox) {
+            const visibleCheckboxes = datosAMostrar.length > 0;
+            const allVisibleSelected = visibleCheckboxes && datosAMostrar.every(row => equiposSeleccionadosMap.has(Number(row.id)));
+            selectAllCheckbox.checked = allVisibleSelected;
+        }
+
+        const tabla = document.getElementById('tabla-resultados');
+        tabla.innerHTML = datosAMostrar.length ? '' : '<tr><td colspan="7" class="p-10 text-center text-gray-500 italic">No se encontraron bienes para este filtro.</td></tr>';
+
+        datosAMostrar.forEach(row => {
             let iconoFotoHTML = row.ruta_foto 
                 ? `<button onclick="verImagen('${BASE_URL_IMAGENES}${row.ruta_foto}', '${row.no_bien_mueble || 'S/N'}')" class="text-indigo-600 hover:text-indigo-800 transition transform hover:scale-110"><i class="fas fa-image text-2xl"></i></button>`
                 : `<span class="text-gray-300"><i class="fas fa-image text-2xl"></i></span>`;
@@ -336,6 +454,11 @@ if (isset($_GET['ajax'])) {
                         <span class="text-gray-400 italic block text-xs font-semibold">
                             <i class="fas fa-box text-gray-300 mr-1"></i> EN STOCK
                         </span>
+                        ${row.ultimo_responsable ? `
+                            <span class="text-[11px] text-red-600 font-semibold block mt-0.5" title="Último usuario asignado antes de la baja">
+                                <i class="fas fa-history text-red-400 mr-1"></i> Último: ${row.ultimo_responsable}
+                            </span>
+                        ` : ''}
                     `}
                     <span class="text-xs text-gray-500 block mt-1 font-medium">
                         Estatus: <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${row.estatus === 'Operativo' || row.estatus === 'Asignado' || row.estatus === 'IDENTIFICADO' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}">${row.estatus || 'Operativo'}</span>
@@ -371,8 +494,8 @@ if (isset($_GET['ajax'])) {
             `<option value="${t.id_tipo}" ${t.id_tipo == row.id_tipo_bien ? 'selected' : ''}>${t.nombre_tipo}</option>`
         ).join('');
 
-        let optionsEstatus = ['Operativo', 'Asignado', 'En Stock', 'En Mantenimiento', 'Dañado', 'Para Baja'].map(e =>
-            `<option value="${e}" ${e == (row.estatus || 'Operativo') ? 'selected' : ''}>${e}</option>`
+        let optionsEstatus = ['IDENTIFICADO', 'NO IDENTIFICADO', 'Para Baja'].map(e =>
+            `<option value="${e}" ${e == (row.estatus || 'IDENTIFICADO') ? 'selected' : ''}>${e}</option>`
         ).join('');
 
         Swal.fire({
@@ -395,16 +518,32 @@ if (isset($_GET['ajax'])) {
 
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="swal-field-label">Personal Asignado</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="swal-field-label !mb-0">Personal Asignado</label>
+                                <button type="button" onclick="document.getElementById('swal-pers').value='STOCK'; document.getElementById('swal-ubi').value=''" class="text-[10px] text-blue-600 hover:text-blue-800 font-bold focus:outline-none transition">
+                                    <i class="fas fa-box"></i> Enviar a Stock
+                                </button>
+                            </div>
                             <input id="swal-pers" class="swal-custom-input" list="usuarios_sugeridos_inventario" value="${row.personal_asignado || ''}" placeholder="Ej. Juan Pérez">
                         </div>
+                        <div>
+                            <label class="swal-field-label">Último Responsable (Baja)</label>
+                            <input id="swal-ultimo-pers" class="swal-custom-input" list="usuarios_sugeridos_inventario" value="${row.ultimo_responsable || ''}" placeholder="Ej. Wendi Beatriz Batun">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="swal-field-label">Área / Ubicación</label>
                             <input id="swal-ubi" class="swal-custom-input" value="${row.nombre_ubicacion || ''}">
                         </div>
+                        <div>
+                            <label class="swal-field-label">Número de Serie</label>
+                            <input id="swal-serie" class="swal-custom-input" value="${row.num_serie}">
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="swal-field-label">Marca</label>
                             <input id="swal-marca" class="swal-custom-input" value="${row.marca}">
@@ -415,8 +554,16 @@ if (isset($_GET['ajax'])) {
                         </div>
                     </div>
 
-                    <label class="swal-field-label">Número de Serie</label>
-                    <input id="swal-serie" class="swal-custom-input" value="${row.num_serie}">
+                    <div class="grid grid-cols-2 gap-3 mb-2">
+                        <div>
+                            <label class="swal-field-label">Fecha de Baja</label>
+                            <input id="swal-fecha-baja" type="date" class="swal-custom-input" value="${row.fecha_baja || ''}">
+                        </div>
+                        <div>
+                            <label class="swal-field-label">Motivo de Baja</label>
+                            <input id="swal-motivo-baja" class="swal-custom-input" value="${row.motivo_baja || ''}" placeholder="Ej. Daño irreparable en tarjeta madre">
+                        </div>
+                    </div>
 
                     <label class="swal-field-label">Descripción / Notas</label>
                     <textarea id="swal-desc" class="swal-custom-textarea" rows="3">${row.descripcion || ''}</textarea>
@@ -453,6 +600,9 @@ if (isset($_GET['ajax'])) {
                     modelo: document.getElementById('swal-modelo').value,
                     num_serie: document.getElementById('swal-serie').value,
                     personal_asignado: document.getElementById('swal-pers').value,
+                    ultimo_responsable: document.getElementById('swal-ultimo-pers').value,
+                    fecha_baja: document.getElementById('swal-fecha-baja').value,
+                    motivo_baja: document.getElementById('swal-motivo-baja').value,
                     estatus: document.getElementById('swal-estatus').value,
                     descripcion: document.getElementById('swal-desc').value
                 }
@@ -484,16 +634,26 @@ if (isset($_GET['ajax'])) {
             <div class="text-left text-sm text-gray-700 p-2">
                 <div class="grid grid-cols-2 gap-4 mb-4 border-b pb-3">
                     <div><span class="block text-xs text-gray-400 uppercase">No. Bien Mueble</span><span class="font-bold text-lg text-primary-dark">${row.no_bien_mueble || 'S/N'}</span></div>
-                    <div><span class="block text-xs text-gray-400 uppercase">Responsable</span><span class="font-semibold text-gray-800">${row.personal_asignado || 'STOCK'}</span></div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase">Responsable</span>
+                        <span class="font-semibold text-gray-800">${row.personal_asignado || 'STOCK'}</span>
+                        ${row.ultimo_responsable ? `<span class="block text-xs text-red-600 font-semibold mt-0.5">(Último: ${row.ultimo_responsable})</span>` : ''}
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
                     <div><span class="block text-xs text-gray-400 uppercase">Marca / Modelo</span><span class="font-medium text-gray-800">${row.marca} - ${row.modelo}</span></div>
                     <div><span class="block text-xs text-gray-400 uppercase">Ubicación</span><span class="font-medium text-gray-800">${row.nombre_ubicacion || 'S/A'}</span></div>
                 </div>
-                <div class="mb-4">
+                <div class="mb-4 border-b pb-3">
                     <span class="block text-xs text-gray-400 uppercase">Número de Serie</span>
                     <span class="font-mono bg-gray-100 px-2 py-1 rounded text-gray-800 border">${row.num_serie}</span>
                 </div>
+                ${row.estatus === 'Para Baja' || row.fecha_baja || row.motivo_baja ? `
+                <div class="grid grid-cols-2 gap-4 mb-4 border-b pb-3 bg-red-50 p-2.5 rounded-lg border border-red-100">
+                    <div><span class="block text-xs text-red-500 uppercase font-bold">Fecha de Baja</span><span class="font-semibold text-gray-800">${row.fecha_baja || 'No registrada'}</span></div>
+                    <div><span class="block text-xs text-red-500 uppercase font-bold">Motivo de Baja</span><span class="font-semibold text-gray-800">${row.motivo_baja || 'No registrado'}</span></div>
+                </div>
+                ` : ''}
                 <div class="bg-[#f7fcf7] p-4 rounded-lg border">
                     <span class="block text-xs text-gray-500 uppercase font-bold mb-2">Descripción y Notas:</span>
                     <span class="whitespace-pre-line text-gray-800 italic">${row.descripcion || 'Sin descripción adicional.'}</span>
@@ -530,8 +690,23 @@ if (isset($_GET['ajax'])) {
             if (row) equiposSeleccionadosMap.set(Number(id), row);
         } else {
             equiposSeleccionadosMap.delete(Number(id));
+            // Si el elemento no pertenece al set de datos originales de la página actual,
+            // al desmarcarlo lo removemos de la tabla para que no quede huérfano.
+            const belongsToPage = datosOriginalesPagina.some(d => Number(d.id) === Number(id));
+            if (!belongsToPage) {
+                renderizarTabla(datosOriginalesPagina);
+                return;
+            }
         }
         actualizarContadorSeleccionados();
+        
+        // Sincronizar selectAll
+        const selectAllCheckbox = document.getElementById('selectAll');
+        if (selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.cb-equipo');
+            const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(c => c.checked);
+            selectAllCheckbox.checked = allChecked;
+        }
     }
 
     function toggleSelectAll() {
@@ -548,34 +723,169 @@ if (isset($_GET['ajax'])) {
             }
         });
         actualizarContadorSeleccionados();
+        
+        // Si desmarcamos todo y hay elementos prepended, llamamos a renderizarTabla para removerlos
+        if (!isChecked) {
+            renderizarTabla(datosOriginalesPagina);
+        }
     }
 
     function iniciarTraspaso() {
         if (equiposSeleccionadosMap.size === 0) {
-            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#4f46e5' });
+            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debes seleccionar al menos un equipo marcando su casilla a la izquierda.', confirmButtonColor: '#721538' });
+            return;
+        }
+        const bienes = Array.from(equiposSeleccionadosMap.values());
+        const tieneBajas = bienes.some(bien => bien.estatus === 'Para Baja');
+        if (tieneBajas) {
+            Swal.fire({ icon: 'error', title: 'Operación denegada', text: 'No se pueden transferir o prestar equipos que están dados de baja.', confirmButtonColor: '#721538' });
             return;
         }
         const ids = Array.from(equiposSeleccionadosMap.keys());
         window.location.href = `generar_traspaso.php?equipos=${ids.join(',')}`;
     }
 
-    function iniciarResguardo() {
+    async function iniciarResguardo() {
+        const statusFilterVal = document.getElementById('statusFilter').value;
         const filtroPersonal = document.getElementById('userFilter').value;
 
-        if (equiposSeleccionadosMap.size === 0 && !filtroPersonal) {
-            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Selecciona al menos un equipo manualmente o filtra por un responsable específico.', confirmButtonColor: '#721538' });
+        // Caso 1: Generación de resguardo masivo en ZIP (Todos los responsables)
+        if (equiposSeleccionadosMap.size === 0 && (filtroPersonal === 'ALL' || !filtroPersonal)) {
+            if (statusFilterVal === 'BAJA') {
+                Swal.fire({ icon: 'error', title: 'Operación denegada', text: 'No se puede generar resguardo para equipos que están dados de baja.', confirmButtonColor: '#721538' });
+                return;
+            }
+            if (['STOCK', 'STOCK_IDENTIFICADO', 'STOCK_NO_IDENTIFICADO'].includes(statusFilterVal)) {
+                Swal.fire({ icon: 'warning', title: 'Atención', text: 'El resguardo se genera para equipos asignados a un responsable. El stock no tiene responsable asignado.', confirmButtonColor: '#721538' });
+                return;
+            }
+
+            // Confirmación de la operación masiva
+            const confirmBatch = await Swal.fire({
+                title: '¿Generar todos los resguardos?',
+                text: 'Se descargará un archivo ZIP con los resguardos en formato PDF agrupados individualmente por cada responsable.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#721538',
+                confirmButtonText: 'Sí, generar ZIP',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!confirmBatch.isConfirmed) return;
+
+            Swal.fire({
+                title: 'Obteniendo datos...',
+                html: 'Espere mientras se recopilan los datos de los usuarios y equipos...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            try {
+                // 1. Obtener detalles de todos los usuarios
+                const resUsers = await fetch('consultar_usuarios.php?ajax_pdf=1');
+                const usersData = await resUsers.json();
+                const userMap = new Map();
+                usersData.forEach(u => {
+                    if (u.nombre_completo) {
+                        userMap.set(u.nombre_completo.trim().toLowerCase(), u);
+                    }
+                });
+
+                // 2. Obtener todos los equipos asignados activos
+                const resInv = await fetch('consultar_inventario.php?ajax=1&all=1&s=ASIGNADO');
+                const invData = await resInv.json();
+
+                if (!invData.data || invData.data.length === 0) {
+                    Swal.fire('Atención', 'No hay equipos asignados a ningún responsable actualmente.', 'info');
+                    return;
+                }
+
+                // 3. Agrupar por responsable
+                const groups = {};
+                invData.data.forEach(item => {
+                    const resp = (item.personal_asignado || '').trim();
+                    if (resp && resp !== 'STOCK' && resp !== 'Sin Asignar' && resp !== 'STOCK_IDENTIFICADO' && resp !== 'STOCK_NO_IDENTIFICADO') {
+                        if (!groups[resp]) groups[resp] = [];
+                        groups[resp].push(item);
+                    }
+                });
+
+                const responsblesList = Object.keys(groups);
+                if (responsblesList.length === 0) {
+                    Swal.fire('Atención', 'No hay equipos asignados a ningún responsable actualmente.', 'info');
+                    return;
+                }
+
+                // 4. Generar PDFs y comprimir
+                const zip = new JSZip();
+                
+                Swal.fire({
+                    title: 'Generando resguardos...',
+                    html: `Procesando resguardos en PDF... <br><b id="progress-zip">0</b> de ${responsblesList.length}`,
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                let generatedCount = 0;
+                
+                const promises = responsblesList.map(async (respName) => {
+                    const userDetail = userMap.get(respName.toLowerCase()) || {};
+                    const datosTrabajador = {
+                        nombre: respName,
+                        cargo: userDetail.cargo || '_______________________________',
+                        num_empleado: userDetail.num_empleado || '_______________________________',
+                        area: userDetail.nombre_direccion || userDetail.area || groups[respName][0].nombre_ubicacion || '_______________________________',
+                        correo: userDetail.correo_electronico || userDetail.correo || '_______________________________',
+                        telefono: userDetail.telefono || '_______________________________'
+                    };
+
+                    const doc = await generarHojaResguardo(datosTrabajador, groups[respName], false);
+                    const pdfBlob = doc.output('blob');
+                    const sanitizedName = respName.replace(/[^a-zA-Z0-9]/g, '_');
+                    zip.file(`Resguardo_${sanitizedName}.pdf`, pdfBlob);
+
+                    generatedCount++;
+                    const progressEl = document.getElementById('progress-zip');
+                    if (progressEl) progressEl.innerText = generatedCount;
+                });
+
+                await Promise.all(promises);
+
+                Swal.fire({
+                    title: 'Comprimiendo carpeta...',
+                    text: 'Creando archivo ZIP...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `Resguardos_Todos_${new Date().toISOString().slice(0,10)}.zip`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+                Swal.close();
+
+            } catch (err) {
+                console.error(err);
+                Swal.fire('Error', 'Ocurrió un error al generar el archivo ZIP de resguardos.', 'error');
+            }
             return;
         }
 
+        // Caso 2: Resguardo individual/manual (lógica existente adaptada)
         if (equiposSeleccionadosMap.size > 0) {
-            // Si hay selecciones manuales, usamos esas.
             let bienes = Array.from(equiposSeleccionadosMap.values());
+            const tieneBajas = bienes.some(bien => bien.estatus === 'Para Baja');
+            if (tieneBajas) {
+                Swal.fire({ icon: 'error', title: 'Operación denegada', text: 'No se puede generar resguardo para equipos que están dados de baja.', confirmButtonColor: '#721538' });
+                return;
+            }
             let responsable = '';
             bienes.forEach(bien => {
                 if(!responsable && bien.personal_asignado && bien.personal_asignado !== 'STOCK') responsable = bien.personal_asignado;
             });
 
-            // Si encontramos un responsable pero no tenemos sus datos, hacemos una consulta rápida al servidor
             if (responsable && (!datosResponsableActual || filtroPersonal !== responsable)) {
                 Swal.fire({ title: 'Obteniendo datos del responsable...', didOpen: () => Swal.showLoading() });
                 fetch(`consultar_usuarios.php?ajax_details=1&nombre=${encodeURIComponent(responsable)}`)
@@ -593,9 +903,9 @@ if (isset($_GET['ajax'])) {
                 pedirDatosResguardo(bienes, responsable || filtroPersonal);
             }
         } else {
-            // Si no hay selecciones manuales, pero hay un responsable filtrado, jalamos todos sus equipos
+            // Filtro por responsable seleccionado
             Swal.fire({ title: 'Obteniendo equipos...', didOpen: () => Swal.showLoading() });
-            fetch(`consultar_inventario.php?ajax=1&all=1&u=${encodeURIComponent(filtroPersonal)}`)
+            fetch(`consultar_inventario.php?ajax=1&all=1&u=${encodeURIComponent(filtroPersonal)}&s=${encodeURIComponent(statusFilterVal)}`)
                 .then(res => res.json())
                 .then(res => {
                     Swal.close();
@@ -669,7 +979,7 @@ if (isset($_GET['ajax'])) {
         });
     }
 
-    function generarHojaResguardo(datosTrabajador, bienes) {
+    function generarHojaResguardo(datosTrabajador, bienes, shouldSave = true) {
         // Función para limpiar acentos y evitar los '?' en el PDF
         const limpiarTexto = (texto) => {
             if (!texto) return '';
@@ -685,7 +995,7 @@ if (isset($_GET['ajax'])) {
         const logoHacienda = new Image();
         logoHacienda.src = 'img/logo_hacienda.png'; // Asume que tienes este logo en /img/
 
-        Promise.all([
+        return Promise.all([
             new Promise((resolve) => { logoGob.onload = resolve; logoGob.onerror = resolve; }),
             new Promise((resolve) => { logoHacienda.onload = resolve; logoHacienda.onerror = resolve; })
         ]).then(() => {
@@ -846,7 +1156,10 @@ if (isset($_GET['ajax'])) {
                 doc.text(`Página ${i} de ${totalPages}`, pageWidth - marginRight, pageHeight - 15, { align: 'right' });
             }
 
-            doc.save(`Resguardo_${limpiarTexto(datosTrabajador.nombre).replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
+            if (shouldSave) {
+                doc.save(`Resguardo_${limpiarTexto(datosTrabajador.nombre).replace(/\s+/g, '_')}_${fechaActual.replace(/\//g, '')}.pdf`);
+            }
+            return doc;
         });
     }
 
@@ -958,7 +1271,54 @@ if (isset($_GET['ajax'])) {
             doc.text("Hacienda del Estado de Quintana Roo\nSATQ\nwww.satq.qroo.gob.mx", marginLeft, pageHeight - 40, { align: 'left' });
 
             doc.save(`Dictamen_Baja_${fechaActual.replace(/\//g, '')}.pdf`);
-            Swal.close();
+            
+            // Actualizar base de datos: Llamada AJAX para dar de baja los equipos en el sistema
+            const ids = bienes.map(b => b.id);
+            const formData = new FormData();
+            formData.append('accion', 'bulk_baja');
+            formData.append('motivo', motivo);
+            ids.forEach(id => formData.append('ids[]', id));
+            
+            fetch('consultar_inventario.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                Swal.close();
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Dado de baja!',
+                        text: 'Los equipos se han marcado como "Para Baja" en el sistema y se ha descargado el dictamen.',
+                        confirmButtonColor: '#721538'
+                    }).then(() => {
+                        // Limpiar selección
+                        equiposSeleccionadosMap.clear();
+                        actualizarContadorSeleccionados();
+                        document.getElementById('selectAll').checked = false;
+                        // Recargar tabla
+                        cargarDatos();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de base de datos',
+                        text: data.message,
+                        confirmButtonColor: '#721538'
+                    });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.close();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error de comunicación al dar de baja en el sistema.',
+                    confirmButtonColor: '#721538'
+                });
+            });
         });
     }
 
@@ -973,7 +1333,7 @@ if (isset($_GET['ajax'])) {
         
         Swal.fire({ title: 'Generando PDF...', text: 'Preparando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         
-        fetch(`consultar_inventario.php?ajax=1&export=pdf&q=${encodeURIComponent(busquedaActual)}&u=${encodeURIComponent(personalActual)}`)
+        fetch(`consultar_inventario.php?ajax=1&export=pdf&q=${encodeURIComponent(busquedaActual)}&u=${encodeURIComponent(personalActual)}&s=${encodeURIComponent(filtroStatus)}`)
             .then(res => res.json())
             .then(res => {
                 const { jsPDF } = window.jspdf;
@@ -989,7 +1349,7 @@ if (isset($_GET['ajax'])) {
                     doc.text(`Filtrado por responsable: ${limpiarTexto(personalActual)}`, 14, 21);
                 }
                 
-                const columnas = ["No. Bien Mueble", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Ubicacion", "Descripcion"];
+                const columnas = ["No. Bien Mueble", "Tipo", "Marca", "Modelo", "Serie", "Personal", "Último Resp.", "Fecha Baja", "Motivo Baja", "Ubicacion", "Estatus", "Descripcion"];
                 const filas = res.data.map(item => [
                     item.no_bien_mueble || 'S/N', 
                     limpiarTexto(item.nombre_tipo) || 'N/A', 
@@ -997,7 +1357,11 @@ if (isset($_GET['ajax'])) {
                     item.modelo, 
                     item.num_serie, 
                     limpiarTexto(item.personal_asignado) || 'STOCK', 
+                    limpiarTexto(item.ultimo_responsable) || '-', 
+                    item.fecha_baja || '-',
+                    limpiarTexto(item.motivo_baja) || '-',
                     limpiarTexto(item.nombre_ubicacion) || '', 
+                    item.estatus || 'Operativo',
                     limpiarTexto(item.descripcion) || '-'
                 ]);
 
@@ -1007,7 +1371,7 @@ if (isset($_GET['ajax'])) {
                     startY: personalActual ? 26 : 25,
                     theme: 'grid',
                     headStyles: { fillColor: [114, 21, 56] },
-                styles: { fontSize: 8, font: 'Montserrat' }
+                    styles: { fontSize: 7, font: 'Montserrat' }
                 });
 
                 doc.save(`Inventario_${new Date().toISOString().slice(0,10)}.pdf`);
@@ -1025,48 +1389,172 @@ if (isset($_GET['ajax'])) {
         
         Swal.fire({ title: 'Generando Excel...', text: 'Preparando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         
-        fetch(`consultar_inventario.php?ajax=1&export=excel&q=${encodeURIComponent(busquedaActual)}&u=${encodeURIComponent(personalActual)}`)
+        fetch(`consultar_inventario.php?ajax=1&export=excel&q=${encodeURIComponent(busquedaActual)}&u=${encodeURIComponent(personalActual)}&s=${encodeURIComponent(filtroStatus)}`)
             .then(res => res.json())
-            .then(res => {
-                const rows = [
-                    ["REPORTE DE INVENTARIO - SOPORTE TÉCNICO"],
-                    [personalActual ? `Responsable: ${personalActual}` : "Todos los responsables"],
-                    [`Fecha de Generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
-                    [],
-                    ["No. Bien Mueble", "Tipo de Bien", "Marca", "Modelo", "No. Serie", "Personal Asignado", "Ubicación", "Estatus", "Descripción"]
+            .then(async res => {
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('Inventario');
+                worksheet.views = [
+                    { state: 'frozen', xSplit: 0, ySplit: 5, activeCell: 'A6', showGridLines: true }
                 ];
 
-                res.data.forEach(item => {
-                    rows.push([
+                // 1. Títulos y Metadatos
+                worksheet.mergeCells('A1:L1');
+                const titleRow = worksheet.getRow(1);
+                titleRow.getCell(1).value = "REPORTE DE INVENTARIO - SOPORTE TÉCNICO";
+                titleRow.height = 35;
+                titleRow.getCell(1).font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: 'FF721538' } };
+                titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+                worksheet.mergeCells('A2:L2');
+                const filterRow = worksheet.getRow(2);
+                filterRow.getCell(1).value = personalActual ? `Responsable: ${personalActual}` : "Todos los responsables";
+                filterRow.height = 20;
+                filterRow.getCell(1).font = { name: 'Segoe UI', size: 11, italic: true, color: { argb: 'FF555555' } };
+                filterRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+                worksheet.mergeCells('A3:L3');
+                const dateRow = worksheet.getRow(3);
+                const now = new Date();
+                dateRow.getCell(1).value = `Fecha de Generación: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                dateRow.height = 20;
+                dateRow.getCell(1).font = { name: 'Segoe UI', size: 10, italic: true, color: { argb: 'FF777777' } };
+                dateRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+                // Fila 4 vacía
+                worksheet.getRow(4).height = 10;
+
+                // Fila 5: Encabezados
+                const headers = [
+                    "No. Bien Mueble", "Tipo de Bien", "Marca", "Modelo", "No. Serie", 
+                    "Personal Asignado", "Último Responsable", "Fecha de Baja", 
+                    "Motivo de Baja", "Ubicación", "Estatus", "Descripción"
+                ];
+                const headerRow = worksheet.getRow(5);
+                headerRow.values = headers;
+                headerRow.height = 28;
+
+                headerRow.eachCell((cell) => {
+                    cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FF721538' } // Guinda institucional
+                    };
+                    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                    cell.border = {
+                        top: { style: 'medium', color: { argb: 'FF721538' } },
+                        bottom: { style: 'medium', color: { argb: 'FF5A102C' } },
+                        left: { style: 'thin', color: { argb: 'FF8A244E' } },
+                        right: { style: 'thin', color: { argb: 'FF8A244E' } }
+                    };
+                });
+
+                // 2. Filas de Datos
+                let startRow = 6;
+                res.data.forEach((item, index) => {
+                    const rowData = [
                         item.no_bien_mueble || 'S/N',
                         item.nombre_tipo || 'N/A',
                         item.marca || '',
                         item.modelo || '',
                         item.num_serie || 'S/N',
                         item.personal_asignado || 'STOCK',
+                        item.ultimo_responsable || '-',
+                        item.fecha_baja || '-',
+                        item.motivo_baja || '-',
                         item.nombre_ubicacion || '',
                         item.estatus || 'Operativo',
                         item.descripcion || ''
-                    ]);
+                    ];
+
+                    const dataRow = worksheet.getRow(startRow);
+                    dataRow.values = rowData;
+                    dataRow.height = 22;
+
+                    const estatus = (item.estatus || 'IDENTIFICADO').toUpperCase();
+                    let rowBgColor = '';
+                    let rowTextColor = 'FF333333';
+
+                    if (estatus === 'PARA BAJA') {
+                        rowBgColor = 'FFFEE2E2'; // Rojo suave
+                    } else if (estatus === 'NO IDENTIFICADO') {
+                        rowBgColor = 'FFFFFBEB'; // Amarillo suave
+                    } else {
+                        rowBgColor = (index % 2 === 0) ? 'FFFFFFFF' : 'FFF9FAFB'; // Gris alterno / blanco
+                    }
+
+                    dataRow.eachCell((cell, colNumber) => {
+                        cell.font = { name: 'Segoe UI', size: 10, color: { argb: rowTextColor } };
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: rowBgColor }
+                        };
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+                        };
+
+                        // Alineaciones
+                        let horizontalAlign = 'left';
+                        if ([1, 5, 8, 11].includes(colNumber)) {
+                            horizontalAlign = 'center';
+                        }
+                        cell.alignment = { vertical: 'middle', horizontal: horizontalAlign, wrapText: true };
+
+                        // Estilo particular de Estatus
+                        if (colNumber === 11) {
+                            if (estatus === 'PARA BAJA') {
+                                cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+                            } else if (estatus === 'NO IDENTIFICADO') {
+                                cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFD97706' } };
+                            } else {
+                                cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF047857' } };
+                            }
+                        }
+                    });
+
+                    startRow++;
                 });
 
-                const ws = XLSX.utils.aoa_to_sheet(rows);
-                const wb = XLSX.utils.book_new();
+                // 3. Ajuste de Ancho de Columnas
+                worksheet.columns.forEach((col, colIdx) => {
+                    let maxLen = 10;
+                    if (headers[colIdx]) {
+                        maxLen = Math.max(maxLen, headers[colIdx].toString().length);
+                    }
+                    for (let r = 6; r < startRow; r++) {
+                        const cellVal = worksheet.getCell(r, colIdx + 1).value;
+                        if (cellVal) {
+                            maxLen = Math.max(maxLen, cellVal.toString().length);
+                        }
+                    }
+                    col.width = Math.max(12, Math.min(maxLen + 4, 45));
+                });
 
-                ws['!cols'] = [
-                    { wch: 18 }, // No. Bien Mueble
-                    { wch: 15 }, // Tipo
-                    { wch: 15 }, // Marca
-                    { wch: 15 }, // Modelo
-                    { wch: 18 }, // Serie
-                    { wch: 25 }, // Personal
-                    { wch: 35 }, // Ubicación
-                    { wch: 15 }, // Estatus
-                    { wch: 50 }  // Descripción
-                ];
+                // Habilitar filtros automáticos en la cabecera
+                worksheet.autoFilter = `A5:L${startRow - 1}`;
 
-                XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-                XLSX.writeFile(wb, `Inventario_${new Date().toISOString().slice(0,10)}.xlsx`);
+                // Nombre de archivo dinámico
+                let filename = 'Inventario';
+                if (personalActual === 'BAJA') {
+                    filename = 'Inventario_Bajas';
+                } else if (personalActual === 'SIN_ASIGNAR') {
+                    filename = 'Inventario_Stock';
+                } else if (personalActual) {
+                    filename = `Inventario_${personalActual.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                }
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${filename}_${new Date().toISOString().slice(0,10)}.xlsx`;
+                link.click();
+                URL.revokeObjectURL(link.href);
                 Swal.close();
             })
             .catch((e) => {
@@ -1211,7 +1699,7 @@ if (isset($_GET['ajax'])) {
         
         divPaginacion.classList.remove('hidden');
 
-        const registrosPorPagina = 10;
+        const registrosPorPagina = 15;
         const inicio = (meta.pagina_actual - 1) * registrosPorPagina + 1;
         const fin = Math.min(meta.pagina_actual * registrosPorPagina, meta.total_registros);
         if (infoContainer) {

@@ -68,6 +68,16 @@ if (isset($_POST['actualizar_propietario'])) {
     }
     
     $in_clause = implode(',', $ids_clean);
+    
+    // Validar que ninguno de los equipos esté de baja
+    $sql_check = "SELECT COUNT(*) as total FROM inventario_soporte WHERE id IN ($in_clause) AND estatus = 'Para Baja'";
+    $res_check = $conn->query($sql_check);
+    if ($res_check && $res_check->fetch_assoc()['total'] > 0) {
+        echo json_encode(['status' => 'error', 'message' => 'No se pueden transferir o prestar equipos que están dados de baja.']);
+        $conn->close();
+        exit;
+    }
+    
     $nuevo_prop_escaped = $conn->real_escape_string($nuevo_propietario);
     
     $sql_update = "UPDATE inventario_soporte SET personal_asignado = '$nuevo_prop_escaped' WHERE id IN ($in_clause)";

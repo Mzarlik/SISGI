@@ -155,6 +155,7 @@ include 'header.php';
     <script src="js/jspdf.umd.min.js"></script>
     <script src="js/jspdf.plugin.autotable.min.js"></script>
     <script src="js/xlsx.full.min.js"></script>
+    <script src="js/exceljs.min.js"></script>
     <!-- Fuentes Montserrat para jsPDF -->
     <script src="js/Montserrat-normal.js"></script>
     <script src="js/Montserrat-bold.js"></script>
@@ -437,16 +438,64 @@ include 'header.php';
                 return;
             }
 
-            const rows = [
-                ["REPORTE DE USUARIOS SATQ"],
-                [busqueda ? `Filtro aplicado: "${busqueda}"` : "Todos los usuarios"],
-                [`Fecha de Generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
-                [],
-                ["Secretaría", "Dirección / Área", "No. Oficio", "No. Empleado", "Nombre Completo", "Cargo", "Usuario / Cuenta", "Correo Electrónico", "Teléfono"]
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Usuarios SATQ');
+            worksheet.views = [
+                { state: 'frozen', xSplit: 0, ySplit: 5, activeCell: 'A6', showGridLines: true }
             ];
 
-            datos.forEach(row => {
-                rows.push([
+            // 1. Títulos y Metadatos
+            worksheet.mergeCells('A1:I1');
+            const titleRow = worksheet.getRow(1);
+            titleRow.getCell(1).value = "REPORTE DE USUARIOS SATQ";
+            titleRow.height = 35;
+            titleRow.getCell(1).font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: 'FF721538' } };
+            titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+            worksheet.mergeCells('A2:I2');
+            const filterRow = worksheet.getRow(2);
+            filterRow.getCell(1).value = busqueda ? `Filtro aplicado: "${busqueda}"` : "Todos los usuarios";
+            filterRow.height = 20;
+            filterRow.getCell(1).font = { name: 'Segoe UI', size: 11, italic: true, color: { argb: 'FF555555' } };
+            filterRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+            worksheet.mergeCells('A3:I3');
+            const dateRow = worksheet.getRow(3);
+            const now = new Date();
+            dateRow.getCell(1).value = `Fecha de Generación: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+            dateRow.height = 20;
+            dateRow.getCell(1).font = { name: 'Segoe UI', size: 10, italic: true, color: { argb: 'FF777777' } };
+            dateRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+            // Fila 4 vacía
+            worksheet.getRow(4).height = 10;
+
+            // Fila 5: Encabezados
+            const headers = ["Secretaría", "Dirección / Área", "No. Oficio", "No. Empleado", "Nombre Completo", "Cargo", "Usuario / Cuenta", "Correo Electrónico", "Teléfono"];
+            const headerRow = worksheet.getRow(5);
+            headerRow.values = headers;
+            headerRow.height = 28;
+
+            headerRow.eachCell((cell) => {
+                cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF721538' } // Guinda institucional
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                cell.border = {
+                    top: { style: 'medium', color: { argb: 'FF721538' } },
+                    bottom: { style: 'medium', color: { argb: 'FF5A102C' } },
+                    left: { style: 'thin', color: { argb: 'FF8A244E' } },
+                    right: { style: 'thin', color: { argb: 'FF8A244E' } }
+                };
+            });
+
+            // 2. Filas de Datos
+            let startRow = 6;
+            datos.forEach((row, index) => {
+                const rowData = [
                     row.nombre_secretaria || 'Sin asignar',
                     row.nombre_direccion || '---',
                     row.num_oficio || '---',
@@ -456,26 +505,64 @@ include 'header.php';
                     row.usuario || '',
                     row.correo_electronico || 'Sin correo',
                     row.telefono || 'Sin tel'
-                ]);
+                ];
+
+                const dataRow = worksheet.getRow(startRow);
+                dataRow.values = rowData;
+                dataRow.height = 22;
+
+                const rowBgColor = (index % 2 === 0) ? 'FFFFFFFF' : 'FFF9FAFB'; // Gris alterno / blanco
+
+                dataRow.eachCell((cell, colNumber) => {
+                    cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF333333' } };
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: rowBgColor }
+                    };
+                    cell.border = {
+                        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+                    };
+
+                    // Alineaciones
+                    let horizontalAlign = 'left';
+                    if ([3, 4, 7, 9].includes(colNumber)) {
+                        horizontalAlign = 'center';
+                    }
+                    cell.alignment = { vertical: 'middle', horizontal: horizontalAlign, wrapText: true };
+                });
+
+                startRow++;
             });
 
-            const ws = XLSX.utils.aoa_to_sheet(rows);
-            const wb = XLSX.utils.book_new();
+            // 3. Ajuste de Ancho de Columnas
+            worksheet.columns.forEach((col, colIdx) => {
+                let maxLen = 10;
+                if (headers[colIdx]) {
+                    maxLen = Math.max(maxLen, headers[colIdx].toString().length);
+                }
+                for (let r = 6; r < startRow; r++) {
+                    const cellVal = worksheet.getCell(r, colIdx + 1).value;
+                    if (cellVal) {
+                        maxLen = Math.max(maxLen, cellVal.toString().length);
+                    }
+                }
+                col.width = Math.max(12, Math.min(maxLen + 4, 45));
+            });
 
-            ws['!cols'] = [
-                { wch: 30 }, // Secretaría
-                { wch: 35 }, // Dirección
-                { wch: 20 }, // Oficio
-                { wch: 15 }, // Num Empleado
-                { wch: 30 }, // Nombre
-                { wch: 25 }, // Cargo
-                { wch: 20 }, // Usuario
-                { wch: 30 }, // Correo
-                { wch: 15 }  // Teléfono
-            ];
+            // Filtros automáticos
+            worksheet.autoFilter = `A5:I${startRow - 1}`;
 
-            XLSX.utils.book_append_sheet(wb, ws, "Usuarios SATQ");
-            XLSX.writeFile(wb, `Reporte_Usuarios_SATQ_${new Date().getTime()}.xlsx`);
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Reporte_Usuarios_SATQ_${new Date().toISOString().slice(0,10)}.xlsx`;
+            link.click();
+            URL.revokeObjectURL(link.href);
             Swal.close();
         } catch (error) {
             console.error(error);

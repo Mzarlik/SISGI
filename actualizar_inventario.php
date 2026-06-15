@@ -36,6 +36,9 @@ $datos_actualizar = [
     'num_serie'         => $_POST['num_serie'] ?? null,
     'descripcion'       => $_POST['descripcion'] ?? null,
     'personal_asignado' => $_POST['personal_asignado'] ?? null,
+    'ultimo_responsable'=> $_POST['ultimo_responsable'] ?? null,
+    'fecha_baja'        => $_POST['fecha_baja'] ?? null,
+    'motivo_baja'       => $_POST['motivo_baja'] ?? null,
     'nombre_ubicacion'  => $_POST['nombre_ubicacion'] ?? null,
     'estatus'           => $_POST['estatus'] ?? null
 ];
@@ -50,6 +53,44 @@ $conn = get_db_connection();
 
 if (!$conn) {
     echo json_encode(['success' => false, 'message' => 'Error de conexión a la base de datos.']);
+    exit();
+}
+
+// Obtener el estatus y personal actual antes de actualizar
+$estatus_actual = '';
+$personal_actual = '';
+$stmt_check = $conn->prepare("SELECT estatus, personal_asignado FROM inventario_soporte WHERE id = ?");
+if ($stmt_check) {
+    $stmt_check->bind_param("i", $id_registro);
+    $stmt_check->execute();
+    $res_check = $stmt_check->get_result();
+    if ($res_check && $row_check = $res_check->fetch_assoc()) {
+        $estatus_actual = $row_check['estatus'];
+        $personal_actual = $row_check['personal_asignado'];
+    }
+    $stmt_check->close();
+}
+
+// Si el estatus enviado es 'Para Baja', forzamos a que el personal asignado sea 'STOCK'
+if (isset($datos_actualizar['estatus']) && $datos_actualizar['estatus'] === 'Para Baja') {
+    $datos_actualizar['personal_asignado'] = 'STOCK';
+    // Si antes no estaba dado de baja, guardamos el último responsable
+    if ($estatus_actual !== 'Para Baja') {
+        $datos_actualizar['ultimo_responsable'] = $personal_actual;
+        if (empty($datos_actualizar['fecha_baja'])) {
+            $datos_actualizar['fecha_baja'] = date('Y-m-d');
+        }
+    }
+}
+
+// Si el estatus es 'Para Baja' (ya sea el nuevo enviado o el actual en la BD si no se envía nuevo estatus)
+// y se intenta asignar a un personal que no sea 'STOCK', rechazamos la operación.
+$estatus_final = $datos_actualizar['estatus'] ?? $estatus_actual;
+$personal_final = $datos_actualizar['personal_asignado'] ?? null;
+
+if ($estatus_final === 'Para Baja' && $personal_final !== null && strtoupper($personal_final) !== 'STOCK' && $personal_final !== '') {
+    echo json_encode(['success' => false, 'message' => 'No se puede asignar un equipo que se encuentra de baja.']);
+    $conn->close();
     exit();
 }
 
