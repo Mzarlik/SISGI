@@ -69,7 +69,7 @@ if (isset($_GET['ajax_pdf'])) {
     $sql = "SELECT r.num_oficio, 
                    r.nombres, r.apellido_paterno, r.apellido_materno, r.num_empleado, r.jefe_inmediato,
                    TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_completo,
-                   TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) as nombre_natural,
+                   TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) as nombre_natural,
                    r.usuario, r.cargo, r.correo_electronico, r.telefono,
                    d.nombre_direccion, 
                    s.nombres as nombre_secretaria 
@@ -297,6 +297,9 @@ include 'header.php';
                     <button type="button" onclick="exportarExcel()" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium cursor-pointer">
                         <i class="fas fa-file-excel w-6 text-center text-green-600 text-base"></i> Exportar a Excel
                     </button>
+                    <a href="limpiar_usuarios.php" class="block px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition border-b border-gray-100 font-medium">
+                        <i class="fas fa-magic w-6 text-center text-indigo-600 text-base"></i> Unificar Nombres
+                    </a>
                     <a href="dashboard.php" class="block px-4 py-3 text-gray-700 hover:bg-gray-100 transition font-medium">
                         <i class="fas fa-home w-6 text-center text-gray-600 text-base"></i> Menú Principal
                     </a>

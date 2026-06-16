@@ -104,10 +104,20 @@ if (isset($_GET['ajax'])) {
         $conditions[] = "inv.estatus = 'Para Baja'";
     } elseif ($filtro_status === 'ASIGNADO') {
         $conditions[] = "(inv.personal_asignado IS NOT NULL AND inv.personal_asignado <> '' AND inv.personal_asignado <> 'STOCK' AND inv.personal_asignado <> 'Sin Asignar') AND inv.estatus <> 'Para Baja'";
+    } elseif ($filtro_status === 'INCONSISTENTE') {
+        $conditions[] = "inv.personal_asignado IS NOT NULL 
+                         AND inv.personal_asignado <> '' 
+                         AND inv.personal_asignado <> 'STOCK' 
+                         AND inv.personal_asignado <> 'Sin Asignar' 
+                         AND inv.estatus <> 'Para Baja'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM registros_ad r 
+                             WHERE TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) = inv.personal_asignado
+                         )";
     }
 
     // 2. Filtro específico por personal
-    if ($filtro_personal !== 'ALL' && $filtro_personal !== '' && $filtro_personal !== 'SIN_ASIGNAR' && $filtro_personal !== 'STOCK_IDENTIFICADO' && $filtro_personal !== 'STOCK_NO_IDENTIFICADO' && $filtro_personal !== 'BAJA') {
+    if ($filtro_personal !== 'ALL' && $filtro_personal !== '' && $filtro_personal !== 'SIN_ASIGNAR' && $filtro_personal !== 'STOCK_IDENTIFICADO' && $filtro_personal !== 'STOCK_NO_IDENTIFICADO' && $filtro_personal !== 'BAJA' && $filtro_personal !== 'INCONSISTENTE') {
         $safe_user = $conn->real_escape_string($filtro_personal);
         if ($filtro_status === 'BAJA') {
             $conditions[] = "(inv.ultimo_responsable = '$safe_user' OR inv.personal_asignado = '$safe_user')";
@@ -124,7 +134,7 @@ if (isset($_GET['ajax'])) {
     $total_registros = $resCount ? $resCount->fetch_assoc()['total'] : 0;
     $total_paginas = ceil($total_registros / $registros_por_pagina);
 
-    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ultimo_responsable, inv.fecha_baja, inv.motivo_baja, inv.nombre_ubicacion, inv.ruta_foto, inv.estatus";
+    $columnas = "inv.id, inv.num_inventario, inv.no_bien_mueble, tbi.nombre_tipo, inv.id_tipo_bien, inv.marca, inv.modelo, inv.num_serie, inv.descripcion, inv.personal_asignado, inv.ultimo_responsable, inv.fecha_baja, inv.motivo_baja, inv.nombre_ubicacion, inv.ruta_foto, inv.estatus, inv.descripcion_corta, inv.color, inv.no_inv_anterior, inv.area_asignacion, inv.oficio_entrega_sefiplan, inv.municipio";
     
     // Si es para PDF o para resguardo total, quitamos el límite de paginación
     $limit_clause = " LIMIT $registros_por_pagina OFFSET $offset";
@@ -209,6 +219,7 @@ if (isset($_GET['ajax'])) {
                 <option value="STOCK_IDENTIFICADO" class="text-green-700 bg-green-50 font-medium">👉 En STOCK - Identificados</option>
                 <option value="STOCK_NO_IDENTIFICADO" class="text-red-700 bg-red-50 font-medium">👉 En STOCK - No Identificados</option>
                 <option value="ASIGNADO" class="text-blue-700 bg-blue-50 font-medium">👤 Equipos Asignados</option>
+                <option value="INCONSISTENTE" class="text-orange-700 bg-orange-50 font-medium">⚠️ Ex-empleados / Inconsistentes</option>
                 <option value="BAJA" class="font-bold text-red-600 bg-red-50">⛔ Equipos de BAJA</option>
             </select>
         </div>
@@ -633,30 +644,78 @@ if (isset($_GET['ajax'])) {
         const detallesHtml = `
             <div class="text-left text-sm text-gray-700 p-2">
                 <div class="grid grid-cols-2 gap-4 mb-4 border-b pb-3">
-                    <div><span class="block text-xs text-gray-400 uppercase">No. Bien Mueble</span><span class="font-bold text-lg text-primary-dark">${row.no_bien_mueble || 'S/N'}</span></div>
                     <div>
-                        <span class="block text-xs text-gray-400 uppercase">Responsable</span>
-                        <span class="font-semibold text-gray-800">${row.personal_asignado || 'STOCK'}</span>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">No. Bien Mueble</span>
+                        <span class="font-extrabold text-lg text-primary-dark">#${row.no_bien_mueble || 'S/N'}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Responsable</span>
+                        <span class="font-semibold text-gray-800 text-sm">${row.personal_asignado || 'STOCK'}</span>
                         ${row.ultimo_responsable ? `<span class="block text-xs text-red-600 font-semibold mt-0.5">(Último: ${row.ultimo_responsable})</span>` : ''}
                     </div>
                 </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
-                    <div><span class="block text-xs text-gray-400 uppercase">Marca / Modelo</span><span class="font-medium text-gray-800">${row.marca} - ${row.modelo}</span></div>
-                    <div><span class="block text-xs text-gray-400 uppercase">Ubicación</span><span class="font-medium text-gray-800">${row.nombre_ubicacion || 'S/A'}</span></div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Marca / Modelo</span>
+                        <span class="font-medium text-gray-800">${row.marca || 'S/M'} - ${row.modelo || 'S/M'}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Ubicación</span>
+                        <span class="font-medium text-gray-800">${row.nombre_ubicacion || 'S/A'}</span>
+                    </div>
                 </div>
-                <div class="mb-4 border-b pb-3">
-                    <span class="block text-xs text-gray-400 uppercase">Número de Serie</span>
-                    <span class="font-mono bg-gray-100 px-2 py-1 rounded text-gray-800 border">${row.num_serie}</span>
+
+                <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Número de Serie</span>
+                        <span class="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-800 border text-xs inline-block mt-0.5">${row.num_serie || 'S/S'}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Categoría / Tipo</span>
+                        <span class="font-medium text-gray-800 uppercase text-xs">${row.nombre_tipo || 'N/A'}</span>
+                    </div>
                 </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Inventario Anterior</span>
+                        <span class="font-medium text-gray-800">${row.no_inv_anterior || '---'}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Color</span>
+                        <span class="font-medium text-gray-800">${row.color || '---'}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-3 border-b pb-3">
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Área de Asignación</span>
+                        <span class="font-medium text-gray-800 text-xs">${row.area_asignacion || '---'}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-400 uppercase font-bold">Oficio SEFIPLAN / Municipio</span>
+                        <span class="font-medium text-gray-800 text-xs">${row.oficio_entrega_sefiplan || '---'} ${row.municipio ? `(Mpo: ${row.municipio})` : ''}</span>
+                    </div>
+                </div>
+
                 ${row.estatus === 'Para Baja' || row.fecha_baja || row.motivo_baja ? `
                 <div class="grid grid-cols-2 gap-4 mb-4 border-b pb-3 bg-red-50 p-2.5 rounded-lg border border-red-100">
                     <div><span class="block text-xs text-red-500 uppercase font-bold">Fecha de Baja</span><span class="font-semibold text-gray-800">${row.fecha_baja || 'No registrada'}</span></div>
                     <div><span class="block text-xs text-red-500 uppercase font-bold">Motivo de Baja</span><span class="font-semibold text-gray-800">${row.motivo_baja || 'No registrado'}</span></div>
                 </div>
                 ` : ''}
-                <div class="bg-[#f7fcf7] p-4 rounded-lg border">
-                    <span class="block text-xs text-gray-500 uppercase font-bold mb-2">Descripción y Notas:</span>
-                    <span class="whitespace-pre-line text-gray-800 italic">${row.descripcion || 'Sin descripción adicional.'}</span>
+
+                ${row.descripcion_corta ? `
+                <div class="bg-gray-50 p-2.5 rounded-lg border mb-3">
+                    <span class="block text-[11px] text-gray-500 uppercase font-bold mb-1">Descripción Corta / Rubro:</span>
+                    <span class="text-gray-800 font-semibold text-xs">${row.descripcion_corta}</span>
+                </div>
+                ` : ''}
+
+                <div class="bg-[#f7fcf7] p-3.5 rounded-lg border border-green-100">
+                    <span class="block text-xs text-green-700 uppercase font-bold mb-2">Descripción Completa / Características:</span>
+                    <span class="whitespace-pre-line text-gray-800 italic text-xs leading-relaxed">${row.descripcion || 'Sin descripción adicional.'}</span>
                 </div>
             </div>
         `;
@@ -1184,7 +1243,7 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
                 body: [
-                    [`\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, '\n\n\n_______________________________', '\n\n\nLeydi del Pilar Ulloa Ramirez'],
+                    [`\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, `\n\n\n${limpiarTexto(datosTrabajador.jefe_inmediato)}`, '\n\n\nLeydi del Pilar Ulloa Ramirez'],
                     [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
                 ],
                 theme: 'grid',

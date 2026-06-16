@@ -32,18 +32,22 @@ if (($gestor = fopen($archivo, "r")) !== FALSE) {
         $correo          = trim($datos[5] ?? '');
         $telefono        = trim($datos[6] ?? '');
 
-        // 1. Dividir el nombre en Nombre(s), Apellido Paterno y Materno
+        // 1. Dividir el nombre en Nombre(s), Apellido Paterno y Materno (Asumiendo formato: Paterno Materno Nombres...)
         $partes = array_values(array_filter(explode(" ", $nombre_completo)));
         $total_palabras = count($partes);
         $nombres = ""; $paterno = ""; $materno = "";
         
-        if ($total_palabras == 1) { $nombres = $partes[0]; }
-        elseif ($total_palabras == 2) { $nombres = $partes[0]; $paterno = $partes[1]; }
-        elseif ($total_palabras == 3) { $nombres = $partes[0]; $paterno = $partes[1]; $materno = $partes[2]; }
-        elseif ($total_palabras >= 4) {
-            $materno = array_pop($partes);
-            $paterno = array_pop($partes);
-            $nombres = implode(" ", $partes);
+        if ($total_palabras == 1) { 
+            $nombres = $partes[0]; 
+        }
+        elseif ($total_palabras == 2) { 
+            $paterno = $partes[0]; 
+            $nombres = $partes[1]; 
+        }
+        elseif ($total_palabras >= 3) {
+            $paterno = $partes[0];
+            $materno = $partes[1];
+            $nombres = implode(" ", array_slice($partes, 2));
         }
 
         // 2. Buscar o crear el Área en cat_direcciones

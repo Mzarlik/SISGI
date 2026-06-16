@@ -420,7 +420,15 @@ include 'header.php';
         doc.setFontSize(7);
         const pieY = pageHeight - 25;
         doc.text("C.c.p. Archivo", margenIzquierdo, pieY);
-        doc.text(`Realizó: ${document.getElementById('realizo').value} / Revisó: ${document.getElementById('reviso').value}`, margenIzquierdo, pieY + 4);
+        
+        let offsetLine = 4;
+        const jefeInmediato = document.getElementById('recibe').dataset.jefeInmediato || '';
+        if (jefeInmediato && jefeInmediato.trim() !== '' && jefeInmediato !== '---') {
+            doc.text(`C.c.p. C. ${jefeInmediato.toUpperCase()} - JEFE INMEDIATO`, margenIzquierdo, pieY + offsetLine);
+            offsetLine += 4;
+        }
+        
+        doc.text(`Realizó: ${document.getElementById('realizo').value} / Revisó: ${document.getElementById('reviso').value}`, margenIzquierdo, pieY + offsetLine);
 
         doc.save(`Traspaso_${document.getElementById('num_oficio').value.replace(/\//g, '_')}.pdf`);
     };
@@ -514,6 +522,7 @@ include 'header.php';
                 div.addEventListener('click', function() {
                     inputRecibe.value = `${c.nombre_completo} - ${c.cargo || 'Sin cargo'}`;
                     inputRecibe.dataset.nombreNatural = c.nombre_natural || c.nombre_completo;
+                    inputRecibe.dataset.jefeInmediato = c.jefe_inmediato || '';
                     if (c.nombre_direccion) inputArea.value = c.nombre_direccion;
                     cajaSugerencias.classList.add('hidden'); 
                 });

@@ -101,7 +101,7 @@ $sql = "SELECT inv.id, inv.num_inventario as numInventario, tbi.nombre_tipo as t
                inv.descripcion, inv.marca, inv.modelo
         FROM inventario_soporte inv
         LEFT JOIN tipo_bien_inventario tbi ON inv.id_tipo_bien = tbi.id_tipo
-        LEFT JOIN registros_ad r ON TRIM(REPLACE(CONCAT(r.apellido_materno, ' ', r.nombres, ' ', COALESCE(r.apellido_paterno,'')), '  ', ' ')) = inv.personal_asignado
+        LEFT JOIN registros_ad r ON TRIM(REPLACE(CONCAT(r.nombres, ' ', COALESCE(r.apellido_paterno,''), ' ', COALESCE(r.apellido_materno,'')), '  ', ' ')) = inv.personal_asignado
         LEFT JOIN cat_direcciones d ON r.id_direccion = d.id_direccion
         LEFT JOIN Secretarias s ON d.id_secretaria = s.id_secretaria
         $whereSQL 

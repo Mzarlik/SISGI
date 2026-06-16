@@ -2,7 +2,6 @@
 // alta_usuarios.php
 require_once 'session_check.php';
 require_once 'config.php';
-session_start();
 
 // 1. SEGURIDAD: Verifica si el usuario está logueado y si tiene rol de 'admin'
 if (!isset($_SESSION['usuario']) || ($_SESSION['rol'] ?? '') !== 'admin') {
@@ -114,9 +113,10 @@ $conn->close();
             <select name="rol" required>
                 <option value="" disabled selected>Selecciona Rol</option>
                 <option value="tecnico">Técnico (tecnico)</option>
+                <option value="admin">Administrador (admin)</option>
                 <option value="masterweb">Master Web (masterweb)</option>
-                <option value="recepcion">Administración (recepcion)</option>
                 <option value="redes">Redes (redes)</option>
+                <option value="invitado">Invitado (invitado)</option>
             </select>
 
             <button type="submit">Registrar Usuario</button>
