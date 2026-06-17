@@ -892,10 +892,6 @@ include 'header.php';
                     Swal.showValidationMessage('Debe seleccionar una Dirección / Área.');
                     return false;
                 }
-                if (!usuario) {
-                    Swal.showValidationMessage('El campo Usuario / Cuenta es obligatorio.');
-                    return false;
-                }
 
                 return {
                     id: document.getElementById('edit-id').value,
