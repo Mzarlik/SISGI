@@ -130,52 +130,29 @@ if (isset($_GET['ajax_equipos_modal'])) {
 
 include 'header.php';
 ?>
+<script src="js/xlsx.full.min.js"></script>
+<script src="js/exceljs.min.js"></script>
+<script src="js/Montserrat-normal.js"></script>
+<script src="js/Montserrat-bold.js"></script>
+<style>
+    .editable-input { width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9em; }
+    .editable-input:focus { outline: 2px solid #721538; border-color: transparent; }
+    .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+    .chart-container { position: relative; height: 300px; width: 100%; }
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Licencias Office 365</title>
-    <script src="js/tailwindcss.js"></script>
-    <script src="js/sweetalert2.all.min.js"></script>
-    <script src="js/jspdf.umd.min.js"></script>
-    <!-- Fuentes Montserrat para jsPDF -->
-    <script src="js/Montserrat-normal.js"></script>
-    <script src="js/Montserrat-bold.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'brand': '#721538',       
-                        'brand-light': '#942f54', 
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .editable-input { width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9em; }
-        .editable-input:focus { outline: 2px solid #721538; border-color: transparent; }
-        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
-        .chart-container { position: relative; height: 300px; width: 100%; }
+    @media (max-width: 768px) {
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; white-space: normal !important; }
+        tr { background: white; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538; padding: 15px; position: relative; }
+        td { padding: 10px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 40px; }
+        td:last-child { border-bottom: none; justify-content: center; padding-top: 15px; }
+        td:before { content: attr(data-label); position: static; text-align: left; font-weight: bold; color: #721538; text-transform: uppercase; font-size: 0.75em; width: 35%; min-width: 100px; flex-shrink: 0; }
+        td > div { text-align: right; width: 60%; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
+        .progress-container { width: 100% !important; display: flex; flex-direction: column; align-items: flex-end; }
+    }
+</style>
 
-        @media (max-width: 768px) {
-            thead { display: none; }
-            table, tbody, tr, td { display: block; width: 100%; white-space: normal !important; }
-            tr { background: white; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538; padding: 15px; position: relative; }
-            td { padding: 10px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 40px; }
-            td:last-child { border-bottom: none; justify-content: center; padding-top: 15px; }
-            td:before { content: attr(data-label); position: static; text-align: left; font-weight: bold; color: #721538; text-transform: uppercase; font-size: 0.75em; width: 35%; min-width: 100px; flex-shrink: 0; }
-            td > div { text-align: right; width: 60%; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
-            .progress-container { width: 100% !important; display: flex; flex-direction: column; align-items: flex-end; }
-        }
-    </style>
-</head>
-<body class="bg-gray-100 min-h-screen p-4 md:p-8 font-sans text-gray-800">
-
-<div class="max-w-7xl mx-auto space-y-6">
+<div class="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-2">
         <div>
             <h1 class="text-3xl font-bold text-brand flex items-center gap-3">
@@ -667,5 +644,7 @@ include 'header.php';
         } catch (e) { Swal.fire('Error PDF', '', 'error'); }
     }
 </script>
+</div>
+</main>
 </body>
 </html>

@@ -206,60 +206,17 @@ $sql = "SELECT r.*,
 $res = $conn->query($sql);
 include 'header.php';
 ?>
+<script src="js/xlsx.full.min.js"></script>
+<script src="js/exceljs.min.js"></script>
+<script src="js/Montserrat-normal.js"></script>
+<script src="js/Montserrat-bold.js"></script>
+<style>
+    /* Estilos para inputs dentro de SweetAlert al editar */
+    .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+    .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
+</style>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Usuarios SATQ</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="js/sweetalert2.all.min.js"></script>   
-    <script src="js/jspdf.umd.min.js"></script>
-    <script src="js/jspdf.plugin.autotable.min.js"></script>
-    <script src="js/xlsx.full.min.js"></script>
-    <script src="js/exceljs.min.js"></script>
-    <!-- Fuentes Montserrat para jsPDF -->
-    <script src="js/Montserrat-normal.js"></script>
-    <script src="js/Montserrat-bold.js"></script>
-    
-    <style>
-        :root {
-            --brand-color: #721538;
-            --brand-light: #942f54;
-            --bg-color: #f3f4f6;
-            --text-color: #374151;
-        }
-
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #d6d1ca; margin: 0; padding: 20px; color: var(--text-color); }
-        .container { max-width: 1200px; margin: 0 auto; }
-        
-        .search-input { width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #d1d5db; border-radius: 8px; outline: none; transition: 0.3s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .search-input:focus { border-color: var(--brand-color); box-shadow: 0 0 0 3px rgba(114, 21, 56, 0.1); }
-        .search-icon-svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #9ca3af; z-index: 10; }
-        
-        table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        td { padding: 16px; border-bottom: 1px solid #e5e7eb; font-size: 0.95em; vertical-align: top; }
-        tbody tr:hover { background-color: #fdf2f5; }
-
-        .hidden { display: none !important; }
-        .col-nombre { font-weight: 600; color: #111827; }
-        .col-sec { font-size: 0.85em; color: #6b7280; display: block; }
-        .col-dir { color: #374151; font-weight: 500; }
-        
-        .pagination { display: flex; justify-content: center; padding: 20px; gap: 5px; }
-        .page-link { padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em; transition: 0.2s; }
-        .page-link.active { background-color: var(--brand-color); color: white; }
-        .page-link.inactive { background-color: white; border: 1px solid #e5e7eb; color: var(--text-color); }
-
-        /* Estilos para inputs dentro de SweetAlert al editar */
-        .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
-        .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
-    </style>
-</head>
-<body class="p-4 sm:p-8 bg-[#d6d1ca] min-h-screen">
-    <div class="max-w-7xl mx-auto space-y-6">
+<div class="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
         
         <div class="flex flex-col sm:flex-row justify-between items-center mb-2">
             <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
@@ -437,7 +394,7 @@ include 'header.php';
             const jefeText = row.jefe_inmediato || '---';
 
             html += `
-                <tr id="fila_${row.id}" class="table-row-hover transition-colors duration-150">
+                <tr id="fila_${row.id}" class="hover:bg-[#fdf2f5] transition-colors duration-150 border-b border-gray-100">
                     <td data-label="ID" class="px-6 py-4 text-gray-400 font-mono text-xs">#${row.id}</td>
 
                     <td data-label="Personal" class="px-6 py-4">
@@ -931,5 +888,7 @@ include 'header.php';
         });
     }
 </script>
+</div>
+</main>
 </body>
 </html>

@@ -164,34 +164,19 @@ if ($res_unmapped) {
 
 include 'header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Depuración de Nombres e Inventario</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="js/tailwindcss.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    <script src="js/sweetalert2.all.min.js"></script>
+<style>
+    .text-brand { color: #721538; }
+    .bg-brand { background-color: #721538; }
+    .bg-brand:hover { background-color: #942f54; }
     
-    <style>
-        body { background-color: #d6d1ca; font-family: 'Montserrat', 'Segoe UI', sans-serif; }
-        .text-brand { color: #721538; }
-        .bg-brand { background-color: #721538; }
-        .bg-brand:hover { background-color: #942f54; }
-        
-        /* Animación de fadeout al unificar */
-        .fade-out {
-            opacity: 0;
-            transform: scale(0.95);
-            transition: all 0.5s ease;
-        }
-    </style>
-</head>
-<body class="p-4 sm:p-8">
+    .fade-out {
+        opacity: 0;
+        transform: scale(0.95);
+        transition: all 0.5s ease;
+    }
+</style>
 
-<div class="max-w-6xl mx-auto space-y-6">
+<div class="px-4 sm:px-8 max-w-6xl mx-auto space-y-6">
     
     <!-- ENCABEZADO -->
     <div class="flex flex-col sm:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-md border-l-8 border-[#721538]">
@@ -403,7 +388,8 @@ function unificarBienes(index, nombreOriginal) {
     });
 }
 </script>
-
+</div>
+</main>
 </body>
 </html>
 <?php

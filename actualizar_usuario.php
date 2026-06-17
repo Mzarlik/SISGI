@@ -23,6 +23,7 @@ $usuario = $_POST['usuario'] ?? '';
 $contrasena = $_POST['contrasena'] ?? '';
 $cargo = $_POST['cargo'] ?? '';
 $jefe_inmediato = $_POST['jefe_inmediato'] ?? '';
+$jefe_inmediato = obtener_nombre_jefe_formateado($conn, $jefe_inmediato);
 $correo = $_POST['correo_electronico'] ?? '';
 $telefono = $_POST['telefono'] ?? '';
 $num_empleado = $_POST['num_empleado'] ?? '';

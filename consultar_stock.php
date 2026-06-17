@@ -68,192 +68,88 @@ if (isset($_GET['ajax'])) {
 }
 include 'header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Inventario Stock</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="css/style.css"> 
-    <script src="js/sweetalert2.all.min.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    
-    <style>
-        /* --- ESTILOS GENERALES --- */
-        body { background-color: #d6d1ca; font-family: 'Segoe UI', sans-serif; margin: 0; }
-        .main-container { padding: 20px; max-width: 1500px; margin: 0 auto; }
-        
-        /* HEADER */
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .header-top h2 { color: #721538; margin: 0; display: flex; align-items: center; gap: 10px; }
-        .badge-count { background: #e0e0e0; color: #555; font-size: 0.6em; padding: 2px 8px; border-radius: 12px; vertical-align: middle; }
-
-        /* TOOLBAR */
-        .toolbar { 
-            background: #fff; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.08); 
-            display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;
+<style>
+    .input-edit {
+        width: 100%; padding: 6px 10px; border: 1px solid #721538; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem;
+    }
+    .stock-bajo {
+        color: #c0392b; font-weight: bold; background: #fadbd8; padding: 2px 6px; border-radius: 4px;
+    }
+    .stock-ok {
+        color: #27ae60; font-weight: bold;
+    }
+    @media (max-width: 768px) {
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; white-space: normal !important; }
+        tr {
+            background: white; border-radius: 10px; margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538;
+            padding: 15px; position: relative;
         }
+        td { border: none; padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 35px; }
+        td:last-child { border-bottom: none; justify-content: center; padding-top: 15px; }
+        td:before { content: attr(data-label); font-weight: bold; color: #721538; text-transform: uppercase; font-size: 0.75em; text-align: left; width: 35%; flex-shrink: 0; position: static; }
+        td > .view-val, td > .input-edit, td > input { text-align: right; width: 60%; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; display: block; }
+    }
+</style>
 
-        .search-box { position: relative; flex-grow: 1; max-width: 500px; display: block; }
-        .search-icon { 
-            position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
-            color: #999; z-index: 10; pointer-events: none;
-        }
-        .search-input {
-            width: 100%; height: 45px; padding-left: 45px !important; padding-right: 15px;
-            border: 1px solid #ccc; border-radius: 25px; font-size: 16px; outline: none; 
-            transition: border-color 0.3s, box-shadow 0.3s; box-sizing: border-box; 
-        }
-        .search-input:focus { border-color: #721538; box-shadow: 0 0 0 3px rgba(114, 21, 56, 0.1); }
-
-        /* LOADER */
-        .loader { 
-            border: 3px solid #f3f3f3; border-top: 3px solid #721538; border-radius: 50%; 
-            width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: none; margin-left: 10px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* TABLA (PC) */
-        .table-container { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #721538; color: white; padding: 15px; text-align: left; text-transform: uppercase; font-size: 0.85em; letter-spacing: 1px; }
-        td { padding: 12px 15px; border-bottom: 1px solid #eee; color: #333; font-size: 0.95em; vertical-align: middle; }
-        tr:hover { background-color: #fff8e1; }
-
-        /* BOTONES ACCIÓN */
-        .btn-action { padding: 6px 10px; border-radius: 4px; border: none; cursor: pointer; color: white; margin-right: 2px; }
-        .btn-edit { background: #3498db; }
-        .btn-save { background: #27ae60; display: none; }
-        .btn-cancel { background: #95a5a6; display: none; }
-        
-        .btn-add, .btn-menu { 
-            padding: 10px 20px; border-radius: 25px; font-weight: bold; text-decoration: none; display: inline-block; text-align: center; font-size: 0.9em;
-        }
-        .btn-add { background: green; color: white; margin-right: 5px; } 
-        .btn-add:hover { background: #d35400; }
-        .btn-menu { background: #555; color: white; }
-        .btn-menu:hover { background: #333; }
-
-        .input-edit { width: 100%; padding: 6px; border: 1px solid #721538; border-radius: 4px; box-sizing: border-box; }
-        .stock-bajo { color: #c0392b; font-weight: bold; background: #fadbd8; padding: 2px 6px; border-radius: 4px; }
-        .stock-ok { color: #27ae60; font-weight: bold; }
-
-        /* PAGINACIÓN */
-        .paginacion-container { 
-            display: flex; flex-direction: row; justify-content: center; align-items: center;
-            margin-top: 20px; gap: 5px; flex-wrap: wrap; 
-        }
-
-        .page-btn { 
-            width: auto !important; min-width: 40px !important; height: 40px !important; padding: 0 10px !important;
-            border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 6px; 
-            display: inline-flex !important; align-items: center; justify-content: center;
-            font-weight: 500; color: #555; transition: 0.2s; margin-bottom: 5px;
-        }
-        .page-btn:hover:not(.active):not(.disabled) { background: #eee; color: #721538; border-color: #ccc; }
-        .page-btn.active { background: #721538; color: white; border-color: #721538; cursor: default; }
-        .page-btn.disabled { border: none; background: transparent; cursor: default; color: #999; }
-
-        /* --- VISTA MÓVIL (TARJETAS) --- */
-        @media (max-width: 768px) {
-            /* 1. Ocultar encabezados de tabla */
-            thead { display: none; }
-
-            /* 2. Bloques principales y RESET de whitespace */
-            table, tbody, tr, td { 
-                display: block; 
-                width: 100%; 
-                white-space: normal !important; /* CRÍTICO: Permite saltos de línea */
-            }
-            
-            /* 3. Estilo de Tarjeta */
-            tr { 
-                background: white; border-radius: 10px; margin-bottom: 15px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538; 
-                padding: 15px; position: relative;
-            }
-            
-            /* 4. Celda contenedora Flexbox */
-            td { 
-                border: none; padding: 8px 0; border-bottom: 1px solid #f0f0f0; 
-                display: flex; justify-content: space-between; align-items: center; gap: 15px;
-                text-align: right; min-height: 35px;
-            }
-            td:last-child { border-bottom: none; justify-content: center; padding-top: 15px; }
-            
-            /* 5. Etiqueta (Izquierda) */
-            td:before { 
-                content: attr(data-label); 
-                font-weight: bold; color: #721538; 
-                text-transform: uppercase; font-size: 0.75em; text-align: left;
-                width: 35%; flex-shrink: 0; position: static; /* Ya no es absolute */
-            }
-
-            /* 6. Contenido (Derecha) - CORRECCIÓN CLAVE */
-            td > .view-val, td > .input-edit, td > input {
-                text-align: right;
-                width: 60%; /* Ocupa el resto */
-                word-wrap: break-word; 
-                overflow-wrap: break-word; 
-                word-break: break-word; 
-                display: block;
-            }
-
-            .search-box { max-width: 100%; margin-bottom: 10px; }
-            .btn-add, .btn-menu { width: 100%; margin-bottom: 8px; display: block; }
-            .toolbar { flex-direction: column; align-items: stretch; }
-        }
-    </style>
-</head>
-<body>
-
-<div class="main-container">
-    <div class="header-top">
-        <h2>
-            📦 Material en existencia
-            <span class="badge-count" id="total-lbl">...</span>
-            <div id="loading" class="loader"></div>
+<div class="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
+            <i class="fas fa-boxes"></i> Material en Existencia
+            <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full italic" id="total-lbl">...</span>
         </h2>
+        <div id="loading" style="display:none;" class="animate-pulse text-primary-dark font-bold">
+            <i class="fas fa-spinner fa-spin"></i> Cargando...
+        </div>
     </div>
 
-    <div class="toolbar">
-        <div class="search-box">
-            <i class="fas fa-search search-icon"></i>
-            <input type="text" id="searchInput" class="search-input" placeholder="Buscar tipo, marca, modelo...">
+    <div class="bg-white p-4 rounded-xl shadow-md mb-6 flex flex-col lg:flex-row gap-4 items-center justify-between">
+        <div class="relative w-full lg:flex-1">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" id="searchInput" placeholder="Buscar tipo, marca, modelo..." class="w-full pl-11 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none transition">
         </div>
            
-        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <a href="registrar_material.php" class="btn-add"><i class="fas fa-plus"></i> Registrar</a>
-            <a href="salida_material.php" class="btn-add"><i class="fas fa-sign-out-alt"></i> Salida</a>
-            <a href="consultar_salidas.php" class="btn-add"><i class="fas fa-list"></i> Historial</a>
-            <a href="dashboard.php" class="btn-menu"><i class="fas fa-th"></i> Menú</a>
+        <div class="flex gap-2 w-full lg:w-auto justify-end">
+            <a href="registrar_material.php" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-plus"></i> Registrar
+            </a>
+            <a href="salida_material.php" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-sign-out-alt"></i> Salida
+            </a>
+            <a href="consultar_salidas.php" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-list"></i> Historial
+            </a>
+            <a href="dashboard.php" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-th"></i> Menú
+            </a>
         </div>
     </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
+    <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 overflow-x-auto relative z-0">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-primary-dark text-white text-xs font-bold uppercase tracking-wider">
                 <tr>
-                    <th>Tipo</th>
-                    <th>Marca</th>
-                    <th>Modelo</th>
-                    <th>Descripción</th>
-                    <th style="text-align:center;">Unidades</th>
-                    <th style="text-align:center;">Fecha Alta</th>
+                    <th class="px-6 py-4 text-left">Tipo</th>
+                    <th class="px-6 py-4 text-left">Marca</th>
+                    <th class="px-6 py-4 text-left">Modelo</th>
+                    <th class="px-6 py-4 text-left">Descripción</th>
+                    <th class="px-6 py-4 text-center">Unidades</th>
+                    <th class="px-6 py-4 text-center">Fecha Alta</th>
                     <?php if($esAdmin): ?>
-                        <th style="text-align:center;">Acciones</th>
+                        <th class="px-6 py-4 text-center">Acciones</th>
                     <?php endif; ?>
                 </tr>
             </thead>
-            <tbody id="tabla-resultados">
-                </tbody>
+            <tbody id="tabla-resultados" class="text-sm divide-y divide-gray-100 bg-white">
+                <!-- DATOS CARGADOS VIA JS -->
+            </tbody>
         </table>
     </div>
 
-    <div class="paginacion-container" id="paginacion">
-        </div>
+    <div id="paginacion" class="mt-8 flex justify-center gap-2 flex-wrap"></div>
 </div>
 
 <script>
@@ -321,10 +217,10 @@ include 'header.php';
 
             if (esAdmin) {
                 accionesHtml = `
-                    <td data-label="Acciones" style="text-align:center;">
-                        <button class="btn-action btn-edit" onclick="activarEdicion(${row.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
-                        <button class="btn-action btn-save" onclick="guardarFila(${row.id})" title="Guardar"><i class="fas fa-save"></i></button>
-                        <button class="btn-action btn-cancel" onclick="cancelarEdicion(${row.id})" title="Cancelar"><i class="fas fa-times"></i></button>
+                    <td data-label="Acciones" class="px-6 py-4 text-center whitespace-nowrap">
+                        <button class="btn-edit w-8 h-8 rounded border border-gray-300 text-gray-500 hover:text-blue-600 hover:border-blue-600 transition inline-flex items-center justify-center cursor-pointer" onclick="activarEdicion(${row.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="btn-save w-8 h-8 rounded border border-green-300 text-green-500 hover:text-green-600 hover:border-green-600 transition inline-flex items-center justify-center cursor-pointer" style="display:none;" onclick="guardarFila(${row.id})" title="Guardar"><i class="fas fa-save"></i></button>
+                        <button class="btn-cancel w-8 h-8 rounded border border-red-300 text-red-500 hover:text-red-600 hover:border-red-600 transition inline-flex items-center justify-center cursor-pointer" style="display:none;" onclick="cancelarEdicion(${row.id})" title="Cancelar"><i class="fas fa-times"></i></button>
                     </td>
                 `;
             }
@@ -334,33 +230,34 @@ include 'header.php';
 
             const tr = document.createElement('tr');
             tr.id = `fila_${row.id}`;
+            tr.className = "hover:bg-[#fdf2f5] transition-colors duration-150 border-b border-gray-100";
             tr.innerHTML = `
-                <td data-label="Tipo" class="editable" data-campo="tipo">
+                <td data-label="Tipo" class="editable px-6 py-4" data-campo="tipo">
                     <span class="view-val" style="font-weight:bold;">${row.tipo}</span>
                     <input type="text" class="input-edit" style="display:none;" value="${row.tipo}">
                 </td>
 
-                <td data-label="Marca" class="editable" data-campo="marca">
+                <td data-label="Marca" class="editable px-6 py-4" data-campo="marca">
                     <span class="view-val">${marcaVis}</span>
                     <input type="text" class="input-edit" style="display:none;" value="${row.marca || ''}">
                 </td>
 
-                <td data-label="Modelo" class="editable" data-campo="modelo">
+                <td data-label="Modelo" class="editable px-6 py-4" data-campo="modelo">
                     <span class="view-val">${modeloVis}</span>
                     <input type="text" class="input-edit" style="display:none;" value="${row.modelo || ''}">
                 </td>
 
-                <td data-label="Descripción" class="editable" data-campo="descripcion">
-                    <span class="view-val" style="font-style:italic; color:#555;">${row.descripcion}</span>
+                <td data-label="Descripción" class="editable px-6 py-4" data-campo="descripcion">
+                    <span class="view-val font-serif italic text-gray-500">${row.descripcion}</span>
                     <input type="text" class="input-edit" style="display:none;" value="${row.descripcion}">
                 </td>
 
-                <td data-label="Unidades" class="editable" data-campo="unidades" style="text-align:center;">
+                <td data-label="Unidades" class="editable px-6 py-4 text-center" data-campo="unidades">
                     <span class="view-val ${claseStock}">${row.unidades}</span>
                     <input type="number" class="input-edit" style="display:none; text-align:center;" value="${row.unidades}">
                 </td>
 
-                <td data-label="Fecha Alta" class="editable" data-campo="fecha_alta" style="text-align:center;">
+                <td data-label="Fecha Alta" class="editable px-6 py-4 text-center" data-campo="fecha_alta">
                     <span class="view-val">${row.fecha_alta}</span>
                     <input type="date" class="input-edit" style="display:none;" value="${row.fecha_alta}">
                 </td>
@@ -455,7 +352,8 @@ include 'header.php';
             .catch(err => Swal.fire('Error', 'Fallo de conexión', 'error'));
     }
 </script>
-
+</div>
+</main>
 </body>
 </html>
 <?php $conn->close(); ?>

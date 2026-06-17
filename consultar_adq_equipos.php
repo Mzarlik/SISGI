@@ -79,62 +79,26 @@ if (isset($_GET['ajax'])) {
 }
 include 'header.php';
 ?>
+<script src="js/xlsx.full.min.js"></script>
+<script src="js/exceljs.min.js"></script>
+<script src="js/Montserrat-normal.js"></script>
+<script src="js/Montserrat-bold.js"></script>
+<style>
+    @media (max-width: 768px) {
+        thead { display: none; }
+        tr { display: block; background: white; margin-bottom: 1rem; border-radius: 0.75rem; border-left: 6px solid #721538; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        td { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
+        td::before { content: attr(data-label); font-weight: 700; color: #721538; font-size: 0.75rem; text-transform: uppercase; }
+    }
+    table { table-layout: fixed; width: 100%; }
+    .celda-detalles {
+        max-width: 280px;
+        white-space: normal;
+        word-break: break-word;
+    }
+</style>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Consultar Adquisiciones | SISGI</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="js/tailwindcss.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    <script src="js/jspdf.umd.min.js"></script>
-    <script src="js/jspdf.plugin.autotable.min.js"></script>
-    <script src="js/xlsx.full.min.js"></script>
-    <script src="js/exceljs.min.js"></script>
-    <!-- Fuentes Montserrat para jsPDF -->
-    <script src="js/Montserrat-normal.js"></script>
-    <script src="js/Montserrat-bold.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'primary-dark': '#721538',
-                        'primary-light': '#961e4b',
-                        'background': '#d6d1ca',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; }
-        .table-row-hover:hover { background-color: #fff8e1; }
-        .search-input { padding-left: 50px !important; }
-        .search-icon-svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #9ca3af; z-index: 10; }
-
-        @media (max-width: 768px) {
-            thead { display: none; }
-            tr { display: block; background: white; margin-bottom: 1rem; border-radius: 0.75rem; border-left: 6px solid #721538; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-            td { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
-            td::before { content: attr(data-label); font-weight: 700; color: #721538; font-size: 0.75rem; text-transform: uppercase; }
-        }
-                    /* Fuerza a la tabla a respetar estrictamente los anchos asignados */
-            table { table-layout: fixed; width: 100%; }
-
-            /* Manejo para que los textos largos no empujen las columnas */
-            .celda-detalles {
-                max-width: 280px; /* Limita el ancho de la columna de detalles */
-                white-space: normal; /* Permite saltos de línea normales */
-                word-break: break-word; /* Rompe palabras exageradamente largas si es necesario */
-            }
-    </style>
-</head>
-<body class="bg-background min-h-screen p-4 sm:p-8">
-
-    <div class="max-w-7xl mx-auto">
+<div class="px-4 sm:px-8 max-w-7xl mx-auto">
         <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-primary-dark flex items-center gap-2 mb-4 sm:mb-0">
                 <i class="fas fa-desktop"></i> Adquisiciones de Equipos de Computo y Suministros informáticos
@@ -572,6 +536,8 @@ window.onclick = function(event) {
     }
 }
     </script>
+</div>
+</main>
 </body>
 </html>
 <?php $conn->close(); ?>

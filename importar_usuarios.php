@@ -29,6 +29,7 @@ if (($gestor = fopen($archivo, "r")) !== FALSE) {
         $cargo           = trim($datos[2] ?? '');
         $area_depto      = trim($datos[3] ?? '');
         $jefe            = trim($datos[4] ?? '');
+        $jefe            = obtener_nombre_jefe_formateado($conn, $jefe);
         $correo          = trim($datos[5] ?? '');
         $telefono        = trim($datos[6] ?? '');
 

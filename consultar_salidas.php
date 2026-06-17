@@ -92,150 +92,80 @@ if (isset($_GET['ajax'])) {
 }
 include 'header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Historial de Salidas</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="css/style.css"> 
-    <script src="js/sweetalert2.all.min.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    
-    <style>
-        /* --- ESTILOS VISUALES COPIADOS DE CONSULTAR_STOCK.PHP --- */
-        body { background-color: #d6d1ca; font-family: 'Segoe UI', sans-serif; margin: 0; }
-        .main-container { padding: 20px; max-width: 1500px; margin: 0 auto; }
-        
-        /* HEADER */
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .header-top h2 { color: #721538; margin: 0; display: flex; align-items: center; gap: 10px; }
-        .badge-count { background: #e0e0e0; color: #555; font-size: 0.6em; padding: 2px 8px; border-radius: 12px; vertical-align: middle; }
-
-        /* TOOLBAR & BUSCADOR */
-        .toolbar { 
-            background: #fff; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.08); 
-            display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;
+<style>
+    @media (max-width: 768px) {
+        .table-container { background: transparent; box-shadow: none; }
+        table, thead, tbody, th, td, tr { display: block; }
+        thead tr { position: absolute; top: -9999px; left: -9999px; } 
+        tr { 
+            background: white; border-radius: 10px; margin-bottom: 15px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538; 
+            padding: 15px; position: relative;
         }
-
-        .search-box { position: relative; flex-grow: 1; max-width: 500px; display: block; }
-        .search-icon-svg { 
-            position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
-            width: 20px; height: 20px; color: #999; z-index: 10; pointer-events: none;
+        td { 
+            border: none; padding: 8px 0; position: relative; padding-left: 40%; 
+            text-align: right; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: flex-end; align-items: center;
         }
-        .search-input {
-            width: 100%; height: 45px; padding-left: 50px !important; padding-right: 15px;
-            border: 1px solid #ccc; border-radius: 25px; font-size: 16px; outline: none; 
-            transition: border-color 0.3s, box-shadow 0.3s; box-sizing: border-box; 
+        td:last-child { border-bottom: none; }
+        td:before { 
+            content: attr(data-label); 
+            position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+            width: 35%; padding-right: 10px; font-weight: bold; color: #721538; 
+            text-transform: uppercase; font-size: 0.75em; text-align: left;
         }
-        .search-input:focus { border-color: #721538; box-shadow: 0 0 0 3px rgba(114, 21, 56, 0.1); }
+    }
+</style>
 
-        /* LOADER */
-        .loader { 
-            border: 3px solid #f3f3f3; border-top: 3px solid #721538; border-radius: 50%; 
-            width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: none; margin-left: 10px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* TABLA (PC) */
-        .table-container { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #721538; color: white; padding: 15px; text-align: left; text-transform: uppercase; font-size: 0.85em; letter-spacing: 1px; }
-        td { padding: 12px 15px; border-bottom: 1px solid #eee; color: #333; font-size: 0.95em; vertical-align: middle; }
-        tr:hover { background-color: #fff8e1; }
-        
-        /* BOTONES DE BARRA DE HERRAMIENTAS */
-        .btn-add, .btn-menu { 
-            padding: 10px 20px; border-radius: 25px; font-weight: bold; text-decoration: none; display: inline-block; text-align: center;
-        }
-        .btn-add { background: green; color: white; margin-right: 5px; } 
-        .btn-add:hover { background: #d35400; }
-        .btn-menu { background: #555; color: white; }
-        .btn-menu:hover { background: #333; }
-
-        /* PAGINACIÓN */
-        .paginacion-container { display: flex; justify-content: center; margin-top: 20px; gap: 5px; }
-        .page-btn { padding: 8px 14px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; transition: 0.2s; }
-        .page-btn:hover { background: #eee; }
-        .page-btn.active { background: #721538; color: white; border-color: #721538; }
-
-        /* --- VISTA MÓVIL (TARJETAS) --- */
-        @media (max-width: 768px) {
-            .table-container { background: transparent; box-shadow: none; }
-            table, thead, tbody, th, td, tr { display: block; }
-            thead tr { position: absolute; top: -9999px; left: -9999px; } 
-            
-            tr { 
-                background: white; border-radius: 10px; margin-bottom: 15px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #721538; 
-                padding: 15px; position: relative;
-            }
-            
-            td { 
-                border: none; padding: 8px 0; position: relative; padding-left: 40%; 
-                text-align: right; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: flex-end; align-items: center;
-            }
-            td:last-child { border-bottom: none; }
-            
-            td:before { 
-                content: attr(data-label); 
-                position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-                width: 35%; padding-right: 10px; font-weight: bold; color: #721538; 
-                text-transform: uppercase; font-size: 0.75em; text-align: left;
-            }
-
-            .search-box { max-width: 100%; margin-bottom: 10px; }
-            .btn-add, .btn-menu { width: 100%; margin-bottom: 8px; display: block; }
-            .toolbar { flex-direction: column; align-items: stretch; }
-        }
-    </style>
-</head>
-<body>
-
-<div class="main-container">
-    <div class="header-top">
-        <h2>
+<div class="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <h2 class="text-3xl font-bold text-primary-dark flex items-center gap-2">
             <i class="fas fa-history"></i> Historial de Salidas
-            <span class="badge-count" id="total-lbl">Cargando...</span>
-            <div id="loading" class="loader"></div>
+            <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full italic" id="total-lbl">Cargando...</span>
         </h2>
-    </div>
-
-    <div class="toolbar">
-        <div class="search-box">
-            <svg class="search-icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input type="text" id="searchInput" class="search-input" placeholder="Buscar material, motivo o usuario...">
-        </div>
-        
-        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <a href="salida_material.php" class="btn-add">Registrar Salida</a>
-            <a href="consultar_stock.php" class="btn-add">Consultar Stock</a>
-            <a href="dashboard.php" class="btn-menu">Menú</a>
+        <div id="loading" style="display:none;" class="animate-pulse text-primary-dark font-bold">
+            <i class="fas fa-spinner fa-spin"></i> Cargando...
         </div>
     </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
+    <div class="bg-white p-4 rounded-xl shadow-md mb-6 flex flex-col lg:flex-row gap-4 items-center justify-between">
+        <div class="relative w-full lg:flex-1">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" id="searchInput" placeholder="Buscar material, motivo o usuario..." class="w-full pl-11 p-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-dark outline-none transition">
+        </div>
+           
+        <div class="flex gap-2 w-full lg:w-auto justify-end">
+            <a href="salida_material.php" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-sign-out-alt"></i> Registrar Salida
+            </a>
+            <a href="consultar_stock.php" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-boxes"></i> Consultar Stock
+            </a>
+            <a href="dashboard.php" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2.5 px-6 rounded-full shadow transition flex items-center gap-2 justify-center">
+                <i class="fas fa-th"></i> Menú
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 overflow-x-auto relative z-0">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-primary-dark text-white text-xs font-bold uppercase tracking-wider">
                 <tr>
-                    <th>Fecha</th>
-                    <th>Material</th>
-                    <th style="text-align:center;">Unidades Retiradas</th>
-                    <th>Motivo/Destino</th>
-                    <th>Registrado por</th>
+                    <th class="px-6 py-4 text-left">Fecha</th>
+                    <th class="px-6 py-4 text-left">Material</th>
+                    <th class="px-6 py-4 text-center">Unidades Retiradas</th>
+                    <th class="px-6 py-4 text-left">Motivo/Destino</th>
+                    <th class="px-6 py-4 text-left">Registrado por</th>
                 </tr>
             </thead>
-            <tbody id="tabla-resultados">
-                </tbody>
+            <tbody id="tabla-resultados" class="text-sm divide-y divide-gray-100 bg-white">
+                <!-- DATOS CARGADOS VIA JS -->
+            </tbody>
         </table>
     </div>
 
-    <div class="paginacion-container" id="paginacion">
-        </div>
+    <div id="paginacion" class="mt-8 flex justify-center gap-2 flex-wrap"></div>
 </div>
 
 <script>
@@ -310,24 +240,25 @@ include 'header.php';
             `;
 
             const tr = document.createElement('tr');
+            tr.className = "hover:bg-[#fdf2f5] transition-colors duration-150 border-b border-gray-100";
             tr.innerHTML = `
-                <td data-label="Fecha" style="font-size: 0.9em; font-weight: bold;">
-                    ${fechaVis} <br> <span style="font-weight: normal; color: #555;">${horaVis}</span>
+                <td data-label="Fecha" class="px-6 py-4 font-mono text-xs font-semibold text-gray-700">
+                    ${fechaVis} <br> <span class="font-normal text-gray-500">${horaVis}</span>
                 </td>
 
-                <td data-label="Material">
+                <td data-label="Material" class="px-6 py-4">
                     ${materialHtml}
                 </td>
 
-                <td data-label="Cantidad" style="text-align:center; font-weight:bold; color:#e74c3c;">
+                <td data-label="Cantidad" class="px-6 py-4 text-center font-bold text-red-600">
                     ${row.cantidad}
                 </td>
                 
-                <td data-label="Motivo/Destino" style="font-style:italic;">
+                <td data-label="Motivo/Destino" class="px-6 py-4 italic text-gray-600">
                     ${row.descripcion_salida || 'Sin motivo registrado'}
                 </td>
                 
-                <td data-label="Usuario" style="text-transform:uppercase; font-size: 0.8em;">
+                <td data-label="Usuario" class="px-6 py-4 uppercase text-xs font-semibold text-gray-600">
                     ${row.usuario}
                 </td>
             `;
@@ -357,16 +288,27 @@ include 'header.php';
 
     function crearBotonPag(texto, paginaDestino, esActivo = false) {
         const btn = document.createElement('button');
-        btn.innerText = texto;
-        btn.className = `page-btn ${esActivo ? 'active' : ''}`;
+        btn.type = "button";
+        btn.innerHTML = texto;
+        
+        let clases = "w-8 h-8 flex items-center justify-center rounded-md border transition-all text-sm font-medium ";
+        if (esActivo) {
+            clases += "bg-[#721538] text-white shadow-md border-[#721538] scale-105 cursor-default";
+        } else {
+            clases += "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:text-primary-dark cursor-pointer";
+        }
+        btn.className = clases;
+        
         btn.onclick = () => {
             paginaActual = paginaDestino;
             cargarDatos();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
         divPaginacion.appendChild(btn);
     }
 </script>
-
+</div>
+</main>
 </body>
 </html>
 <?php $conn->close(); ?>

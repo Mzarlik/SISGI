@@ -158,39 +158,24 @@ if (isset($_GET['ajax'])) {
     ]);
     exit;
 }
+include 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Inventario Equipos Soporte</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="js/tailwindcss.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    <script src="js/sweetalert2.all.min.js"></script>
-    <script src="js/session_timer.js"></script>
-    <script src="js/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="js/xlsx.full.min.js"></script>
-    <script src="js/exceljs.min.js"></script>
-    <script src="js/jszip.min.js"></script>
-    <!-- Fuentes Montserrat para jsPDF -->
-    <script src="js/Montserrat-normal.js"></script>
-    <script src="js/Montserrat-bold.js"></script>
-    <script>
-        const listaTiposGlobal = <?php echo json_encode($tipos_opciones); ?>;
-        tailwind.config = {
-            theme: { extend: { colors: { 'primary-dark': '#721538', 'primary-light': '#961e4b', 'background': '#d6d1ca' } } }
-        }
-    </script>
-    <style>
-        /* Estilos para inputs dentro de SweetAlert al editar */
-        .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
-        .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
-        .swal-custom-textarea { width: 100% !important; margin: 0 !important; font-size: 0.9rem !important; border: 1px solid #ccc; border-radius: 6px; padding: 10px; }
-    </style>
-</head>
-<body class="p-4 sm:p-8 bg-background">
+<script src="js/xlsx.full.min.js"></script>
+<script src="js/exceljs.min.js"></script>
+<script src="js/jszip.min.js"></script>
+<script src="js/Montserrat-normal.js"></script>
+<script src="js/Montserrat-bold.js"></script>
+<script>
+    const listaTiposGlobal = <?php echo json_encode($tipos_opciones); ?>;
+</script>
+<style>
+    /* Estilos para inputs dentro de SweetAlert al editar */
+    .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+    .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
+    .swal-custom-textarea { width: 100% !important; margin: 0 !important; font-size: 0.9rem !important; border: 1px solid #ccc; border-radius: 6px; padding: 10px; }
+</style>
+
+<div class="px-4 sm:px-8 max-w-7xl mx-auto">
 
 <div class="max-w-7xl mx-auto">
     <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -1144,7 +1129,7 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Conceptos', 'Datos']],
                 body: [
-                    ['Unidad de adscripcion', 'Hacienda del Estado de Quintana Roo / SATQ'],
+                    ['Unidad de adscripcion', 'DIRECCION DE RECAUDACION DE SOLIDARIDAD'],
                     ['Ubicacion', limpiarTexto(datosTrabajador.area)],
                     ['Jefe inmediato', limpiarTexto(datosTrabajador.jefe_inmediato || '_______________________________')],
                     ['Fecha de elaboracion', fechaActual]
@@ -1867,5 +1852,7 @@ if (isset($_GET['ajax'])) {
         if (actual < total) { botonesContainer.appendChild(crearBoton('<i class="fas fa-chevron-right text-xs"></i>', actual + 1)); }
     }
 </script>
+</div>
+</main>
 </body>
 </html>

@@ -117,41 +117,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $sql = "SELECT id, usuario, rol, created_at FROM usuarios ORDER BY id DESC";
 $result = $conn->query($sql);
 ?>
+include 'header.php';
+?>
+<style>
+    /* Estilos para SweetAlert */
+    .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+    .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
+</style>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Gestión de Accesos | SISGI</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="js/tailwindcss.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-    <script src="js/sweetalert2.all.min.js"></script>
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'brand': '#721538',
-                        'brand-dark': '#500e26',
-                        'brand-light': '#9d2449',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        body { background-color: #d6d1ca; font-family: 'Segoe UI', system-ui, sans-serif; }
-        
-        /* Estilos para SweetAlert */
-        .swal-field-label { display: block; text-align: left; font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
-        .swal-custom-input { width: 100% !important; margin: 0 0 12px 0 !important; font-size: 0.9rem !important; height: 40px !important; border: 1px solid #ccc; border-radius: 6px; padding: 0 10px; }
-    </style>
-</head>
-<body class="bg-[#d6d1ca] min-h-screen p-4 sm:p-8">
-
-    <div class="max-w-5xl mx-auto space-y-6">
+<div class="px-4 sm:px-8 max-w-5xl mx-auto space-y-6">
         
         <!-- ENCABEZADO -->
         <div class="flex flex-col sm:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-md border-l-8 border-brand">
@@ -380,7 +354,8 @@ function eliminarUsuario(id, usuario) {
     });
 }
 </script>
-
+</div>
+</main>
 </body>
 </html>
 <?php

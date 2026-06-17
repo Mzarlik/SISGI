@@ -83,92 +83,45 @@ if (isset($_GET['ajax'])) {
 }
 include 'header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Carpetas</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- TAILWIND & LIBRERÍAS -->
-    <script src="js/tailwindcss.js"></script>
-    <script src="js/sweetalert2.all.min.js"></script>
-    <link rel="stylesheet" href="css/all.min.css">
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'primary-dark': '#721538',
-                        'primary-light': '#961e4b',
-                        'background': '#d6d1ca',
-                        'nas-blue': '#721538',
-                    }
-                }
-            }
+<style>
+    .editable-input {
+        width: 100%; padding: 6px; border: 1px solid #721538;
+        border-radius: 4px; box-sizing: border-box; font-size: 0.9rem;
+    }
+    .btn-action-sm {
+        padding: 6px 10px; font-size: 0.75rem;
+        line-height: 1; border-radius: 4px; transition: all 0.15s;
+    }
+    @media (max-width: 768px) {
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; }
+        tr {
+            background: white; margin-bottom: 1rem; border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-left: 6px solid #2c3e50;
+            padding: 0; overflow: hidden;
         }
-    </script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; }
-        .table-row-hover:hover { background-color: #fff8e1; }
-        
-        .editable-input {
-            width: 100%; padding: 6px; border: 1px solid #721538;
-            border-radius: 4px; box-sizing: border-box; font-size: 0.9rem;
+        td {
+            display: flex; justify-content: space-between; align-items: center;
+            text-align: right; padding: 12px 16px; border-bottom: 1px solid #f3f4f6;
+            min-height: 50px;
         }
-        .btn-action-sm {
-            padding: 6px 10px; font-size: 0.75rem;
-            line-height: 1; border-radius: 4px; transition: all 0.15s;
+        td:last-child {
+            border-bottom: none; justify-content: center; background-color: #f9fafb; padding: 15px;
         }
-
-        /* --- CORRECCIÓN BUSCADOR --- */
-        .search-input { padding-left: 50px !important; }
-        .search-icon-svg {
-            position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
-            width: 20px; height: 20px; color: #9ca3af; pointer-events: none; z-index: 10;
+        td::before {
+            content: attr(data-label); font-weight: 700; color: #2c3e50;
+            text-transform: uppercase; font-size: 0.75rem; text-align: left;
+            margin-right: 15px; white-space: nowrap;
         }
-
-        /* --- VISTA MÓVIL (TARJETAS FLEXBOX) --- */
-        @media (max-width: 768px) {
-            thead { display: none; }
-            table, tbody, tr, td { display: block; width: 100%; }
-            
-            tr {
-                background: white; margin-bottom: 1rem; border-radius: 0.75rem;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                border-left: 6px solid #2c3e50; /* Azul oscuro para distinguir NAS */
-                padding: 0; overflow: hidden;
-            }
-            
-            td {
-                display: flex; justify-content: space-between; align-items: center;
-                text-align: right; padding: 12px 16px; border-bottom: 1px solid #f3f4f6;
-                min-height: 50px;
-            }
-            
-            td:last-child {
-                border-bottom: none; justify-content: center; background-color: #f9fafb; padding: 15px;
-            }
-
-            td::before {
-                content: attr(data-label); font-weight: 700; color: #2c3e50;
-                text-transform: uppercase; font-size: 0.75rem; text-align: left;
-                margin-right: 15px; white-space: nowrap;
-            }
-
-            td .view-val {
-                text-align: right; word-break: break-word; max-width: 65%;
-            }
-            
-            .search-container { flex-direction: column; }
+        td .view-val {
+            text-align: right; word-break: break-word; max-width: 65%;
         }
-    </style>
-</head>
-<body class="bg-background min-h-screen p-4 sm:p-8">
+        .search-container { flex-direction: column; }
+    }
+</style>
 
-    <div class="max-w-[1600px] mx-auto">
+<div class="px-4 sm:px-8 max-w-[1600px] mx-auto">
         
         <!-- HEADER -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -507,6 +460,8 @@ include 'header.php';
             });
         }
     </script>
+</div>
+</main>
 </body>
 </html>
 <?php $conn->close(); ?>
