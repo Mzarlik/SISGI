@@ -1243,7 +1243,7 @@ if (isset($_GET['ajax'])) {
                 startY: startY,
                 head: [['Nombre y Firma del Resguardante', 'Vo. Bo. Jefe Inmediato', 'Responsable de Inventario']],
                 body: [
-                    [`\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, `\n\n\n${limpiarTexto(datosTrabajador.jefe_inmediato)}`, '\n\n\nLeydi del Pilar Ulloa Ramirez'],
+                    [`\n\n\n${limpiarTexto(datosTrabajador.nombre)}`, `\n\n\n${limpiarTexto(datosTrabajador.jefe_inmediato)}`, '\n\n\nLEYDI DEL PILAR ULLOA RAMIREZ'],
                     [`Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`, `Fecha: ${fechaActual}`]
                 ],
                 theme: 'grid',
