@@ -116,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // 3. OBTENER LISTADO DE USUARIOS
 $sql = "SELECT id, usuario, rol, created_at FROM usuarios ORDER BY id DESC";
 $result = $conn->query($sql);
-?>
 include 'header.php';
 ?>
 <style>
